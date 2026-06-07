@@ -6,6 +6,7 @@ import { InputManager } from "./InputManager.js";
 import { HUD } from "./HUD.js";
 import { MenuController } from "./MenuController.js";
 import { TEAMS } from "./VehicleCatalog.js";
+import { AIController } from "./AIController.js";
 
 // The main module owns browser setup, scene wiring, and the frame loop.
 // Gameplay objects live in their own files so the project can grow without
@@ -59,15 +60,7 @@ scene.fog = new THREE.Fog(track.fogColor ?? 0x8fb7dc, track.fogNear ?? 120, trac
 let player = null;
 let cameraController = null;
 let raceStarted = false;
-
-const rival = new Car({
-  ...TEAMS[1].vehicles[0],
-  name: "Rival",
-  startPosition: new THREE.Vector3(5, 0, 2),
-  startRotation: 0,
-  isPlayer: false,
-});
-scene.add(rival.group);
+let aiRacers = [];
 
 const input = new InputManager();
 const hud = new HUD();
@@ -86,7 +79,7 @@ function resetRace() {
   }
 
   player.reset(track.startPosition.clone(), track.startRotation);
-  rival.reset(track.getPointOnCenterLine(0.05), track.startRotation);
+  resetAiRacers();
   elapsedRaceTime = 0;
   lapState = track.createLapState();
   cameraController.snapToTarget();
@@ -105,6 +98,7 @@ function startRace(vehicle) {
     isPlayer: true,
   });
   scene.add(player.group);
+  createAiRacers(vehicle.id);
 
   cameraController = new CameraController(camera, player.group, {
     collisionObjects: track.cameraCollisionObjects,
@@ -115,21 +109,65 @@ function startRace(vehicle) {
   resetRace();
 }
 
+function createAiRacers(playerVehicleId) {
+  for (const racer of aiRacers) {
+    scene.remove(racer.car.group);
+  }
+
+  const allVehicles = TEAMS.flatMap((team) => team.vehicles);
+  const opponentVehicles = allVehicles
+    .filter((candidate) => candidate.id !== playerVehicleId)
+    .slice(0, 5);
+  const difficulties = ["Easy", "Medium", "Medium", "Hard", "Hard"];
+
+  aiRacers = opponentVehicles.map((vehicle, index) => {
+    const car = new Car({
+      ...vehicle,
+      name: vehicle.shortName,
+      startPosition: track.getPointOnCenterLine(0.02 + index * 0.006),
+      startRotation: track.startRotation,
+      isPlayer: false,
+    });
+    car.maxForwardSpeed = 48 + index * 1.6;
+    scene.add(car.group);
+
+    const controller = new AIController(car, track, {
+      difficulty: difficulties[index],
+      laneOffset: index % 2 === 0 ? 4.5 : -4.5,
+      startProgress: 0.018 + index * 0.007,
+    });
+
+    return {
+      car,
+      controller,
+      lapState: track.createLapState(),
+      difficulty: difficulties[index],
+    };
+  });
+
+  resetAiRacers();
+}
+
+function resetAiRacers() {
+  aiRacers.forEach((racer, index) => {
+    racer.lapState = track.createLapState();
+    racer.controller.reset(0.018 + index * 0.008, index % 2 === 0 ? 4.5 : -4.5);
+  });
+}
+
 function updateRaceProgress(deltaTime) {
   elapsedRaceTime += deltaTime;
   track.updateLapProgress(player.group.position, lapState);
 }
 
 function updateRival(deltaTime) {
-  // The placeholder rival follows the center of the test oval. It proves the
-  // multi-car structure without pretending to be finished racing AI.
-  const pathPoint = track.getPointOnCenterLine((elapsedRaceTime * 0.055) % 1);
-  const nextPathPoint = track.getPointOnCenterLine((elapsedRaceTime * 0.055 + 0.01) % 1);
-  const heading = Math.atan2(nextPathPoint.x - pathPoint.x, nextPathPoint.z - pathPoint.z);
+  const allCars = [player, ...aiRacers.map((racer) => racer.car)].filter(Boolean);
 
-  rival.group.position.lerp(pathPoint, 0.12);
-  rival.group.rotation.y = heading;
-  rival.animateWheels(deltaTime, 32);
+  for (const racer of aiRacers) {
+    const nearbyCars = allCars.filter((car) => car !== racer.car);
+    racer.controller.update(deltaTime, nearbyCars);
+    track.updateLapProgress(racer.car.group.position, racer.lapState);
+  }
 }
 
 function animate() {
@@ -142,7 +180,6 @@ function animate() {
     elapsedRaceTime += deltaTime;
     menuCameraTime += deltaTime;
     updateMenuCamera(menuCameraTime);
-    updateRival(deltaTime);
     renderer.render(scene, camera);
     return;
   }
@@ -155,7 +192,7 @@ function animate() {
   player.update(deltaTime, controls, track);
   updateRival(deltaTime);
   updateRaceProgress(deltaTime);
-  const racePosition = 1;
+  const racePosition = calculateRacePosition();
   cameraController.update(deltaTime, {
     speed: player.speed,
     steering: player.steerAmount,
@@ -172,11 +209,21 @@ function animate() {
     totalRacers: 6,
     track,
     playerPosition: player.group.position,
-    rivalPositions: [rival.group.position],
+    rivalPositions: aiRacers.map((racer) => racer.car.group.position),
     checkpointName: lapState.lastCheckpointName,
   });
 
   renderer.render(scene, camera);
+}
+
+function calculateRacePosition() {
+  const playerScore = (lapState.currentLap - 1) + track.getProgressAtPosition(player.group.position);
+  const aheadCount = aiRacers.filter((racer) => {
+    const aiScore = racer.controller.getProgressScore(racer.lapState);
+    return aiScore > playerScore;
+  }).length;
+
+  return aheadCount + 1;
 }
 
 function calculateRpm(car) {
