@@ -610,6 +610,40 @@ body {
   margin-top: 24px;
 }
 
+.options-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.options-panel.is-hidden {
+  display: none;
+}
+
+.options-panel label {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 12px;
+  align-items: center;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.options-panel input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.options-panel__mute {
+  grid-template-columns: 84px auto;
+  justify-content: start;
+}
+
 .championship-overlay {
   position: fixed;
   inset: 0;

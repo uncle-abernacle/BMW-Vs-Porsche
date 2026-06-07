@@ -8,6 +8,7 @@ import { MenuController } from "./MenuController.js";
 import { TEAMS } from "./VehicleCatalog.js";
 import { AIController } from "./AIController.js";
 import { ChampionshipManager } from "./ChampionshipManager.js";
+import { AudioManager } from "./AudioManager.js";
 
 // The main module owns browser setup, scene wiring, and the frame loop.
 // Gameplay objects live in their own files so the project can grow without
@@ -65,10 +66,27 @@ let aiRacers = [];
 
 const input = new InputManager();
 const hud = new HUD();
+const audio = new AudioManager();
 const clock = new THREE.Clock();
 const championship = new ChampionshipManager();
 const menu = new MenuController({
   onStart: ({ vehicle, mode }) => startRace(vehicle, mode),
+  onMenuSound: (type) => {
+    audio.resume();
+    if (type === "confirm") {
+      audio.playMenuConfirm();
+    } else {
+      audio.playMenuMove();
+    }
+  },
+  onOptionsChange: (key, value) => {
+    audio.resume();
+    if (key === "muted") {
+      audio.setMuted(value);
+    } else {
+      audio.setVolume(key, value);
+    }
+  },
 });
 const championshipOverlay = document.querySelector("#championship-overlay");
 const championshipKicker = document.querySelector("#championship-kicker");
@@ -100,6 +118,8 @@ function resetRace() {
 }
 
 function startRace(vehicle, mode = activeMode) {
+  audio.resume();
+  audio.playCountdown();
   activeMode = mode;
   playerVehicle = vehicle;
   if (player) {
@@ -237,6 +257,12 @@ function animate() {
     playerPosition: player.group.position,
     rivalPositions: aiRacers.map((racer) => racer.car.group.position),
     checkpointName: lapState.lastCheckpointName,
+  });
+  audio.update({
+    player,
+    camera,
+    controls,
+    aiRacers,
   });
 
   renderer.render(scene, camera);

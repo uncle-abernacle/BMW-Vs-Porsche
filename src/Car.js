@@ -25,6 +25,7 @@ export class Car {
     this.speed = 0;
     this.steerAmount = 0;
     this.driftAmount = 0;
+    this.lastSurfaceCorrectionStrength = 0;
     this.velocity = new THREE.Vector3();
 
     // Internal velocity is measured in world units per second. The HUD maps
@@ -66,6 +67,7 @@ export class Car {
     this.speed = 0;
     this.steerAmount = 0;
     this.driftAmount = 0;
+    this.lastSurfaceCorrectionStrength = 0;
     this.velocity.set(0, 0, 0);
   }
 
@@ -205,6 +207,7 @@ export class Car {
     const correction = track.getSurfaceCorrection(this.group.position);
 
     if (!correction) {
+      this.lastSurfaceCorrectionStrength = 0;
       return;
     }
 
@@ -214,6 +217,7 @@ export class Car {
     this.group.position.add(correction.direction.multiplyScalar(correction.strength));
     this.velocity.multiplyScalar(correction.speedMultiplier);
     this.speed = this.velocity.dot(this.#getForwardVector());
+    this.lastSurfaceCorrectionStrength = correction.strength;
   }
 
   #tiltBody(deltaTime, speedRatio, lateralSpeed) {

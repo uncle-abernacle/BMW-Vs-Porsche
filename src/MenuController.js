@@ -3,8 +3,10 @@ import { Car } from "./Car.js";
 import { TEAMS } from "./VehicleCatalog.js";
 
 export class MenuController {
-  constructor({ onStart }) {
+  constructor({ onStart, onMenuSound, onOptionsChange }) {
     this.onStart = onStart;
+    this.onMenuSound = onMenuSound;
+    this.onOptionsChange = onOptionsChange;
     this.menu = document.querySelector("#menu");
     this.mainScreen = document.querySelector("[data-menu-screen='main']");
     this.modeScreen = document.querySelector("[data-menu-screen='mode']");
@@ -15,18 +17,27 @@ export class MenuController {
     this.modeTitle = document.querySelector("#mode-title");
     this.modeKicker = document.querySelector("#mode-kicker");
     this.modeDescription = document.querySelector("#mode-description");
+    this.optionsPanel = document.querySelector("#options-panel");
     this.vehicleTitle = document.querySelector("#vehicle-title");
     this.vehicleDescription = document.querySelector("#vehicle-description");
     this.previewCanvas = document.querySelector("#vehicle-preview");
     this.startButton = document.querySelector("#start-race");
     this.backButtons = this.menu.querySelectorAll("[data-menu-back]");
     this.modeButtons = [...this.menu.querySelectorAll("[data-menu-action]")];
+    this.optionInputs = {
+      master: document.querySelector("#master-volume"),
+      engine: document.querySelector("#engine-volume"),
+      sfx: document.querySelector("#sfx-volume"),
+      menu: document.querySelector("#menu-volume"),
+      muted: document.querySelector("#mute-audio"),
+    };
 
     this.selectedTeam = TEAMS[0];
     this.selectedVehicle = TEAMS[0].vehicles[0];
     this.selectedMode = "quick-race";
     this.currentScreenName = "main";
     this.selectedIndexByScreen = new Map();
+    this.isReady = false;
     this.previewCar = null;
     this.previewClock = new THREE.Clock();
     this.modeCopy = {
@@ -59,6 +70,7 @@ export class MenuController {
     this.#selectVehicle(this.selectedVehicle.id);
     this.#showScreen("main");
     this.#setSelectedIndex(0);
+    this.isReady = true;
     this.#animatePreview();
   }
 
@@ -76,6 +88,7 @@ export class MenuController {
     });
 
     this.startButton.addEventListener("click", () => {
+      this.onMenuSound?.("confirm");
       this.hide();
       this.onStart({
         team: this.selectedTeam,
@@ -99,6 +112,13 @@ export class MenuController {
       }
     });
 
+    Object.entries(this.optionInputs).forEach(([key, input]) => {
+      input.addEventListener("input", () => {
+        const value = input.type === "checkbox" ? input.checked : input.value;
+        this.onOptionsChange?.(key, value);
+      });
+    });
+
     window.addEventListener("keydown", (event) => this.#handleKeyboardNavigation(event));
     window.addEventListener("resize", () => this.#resizePreview());
   }
@@ -117,6 +137,7 @@ export class MenuController {
         <span>${team.vehicles.length} vehicles</span>
       `;
       button.addEventListener("click", () => {
+        this.onMenuSound?.("confirm");
         this.selectedTeam = team;
         this.selectedVehicle = team.vehicles[0];
         this.#renderVehicles();
@@ -142,7 +163,10 @@ export class MenuController {
         <strong>${vehicle.name}</strong>
         <span>${vehicle.className}</span>
       `;
-      button.addEventListener("click", () => this.#selectVehicle(vehicle.id));
+      button.addEventListener("click", () => {
+        this.onMenuSound?.("confirm");
+        this.#selectVehicle(vehicle.id);
+      });
       this.vehicleGrid.append(button);
     }
   }
@@ -170,6 +194,7 @@ export class MenuController {
       if (this.currentScreenName === "main") {
         this.selectedMode = "quick-race";
       }
+      this.onMenuSound?.("confirm");
       this.#showScreen("team");
       return;
     }
@@ -183,8 +208,10 @@ export class MenuController {
     this.modeTitle.textContent = mode.title;
     this.modeKicker.textContent = mode.kicker;
     this.modeDescription.textContent = mode.description;
+    this.optionsPanel.classList.toggle("is-hidden", action !== "options");
     this.selectedMode = action;
     this.#showScreen("mode");
+    this.onMenuSound?.("confirm");
   }
 
   #showScreen(screenName) {
@@ -308,6 +335,7 @@ export class MenuController {
     const current = this.selectedIndexByScreen.get(this.currentScreenName) ?? 0;
     const next = (current + direction + items.length) % items.length;
     this.#setSelectedIndex(next);
+    this.onMenuSound?.("move");
   }
 
   #setSelectedIndex(index) {

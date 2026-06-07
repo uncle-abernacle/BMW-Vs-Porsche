@@ -113,6 +113,28 @@
           <span id="mode-kicker" class="menu__eyebrow">Arcade mode</span>
           <h3 id="mode-title">Quick Race</h3>
           <p id="mode-description">Jump straight into a one-off event using your selected vehicle.</p>
+          <div id="options-panel" class="options-panel is-hidden">
+            <label>
+              <span>Master</span>
+              <input id="master-volume" type="range" min="0" max="1" step="0.01" value="0.85" />
+            </label>
+            <label>
+              <span>Engine</span>
+              <input id="engine-volume" type="range" min="0" max="1" step="0.01" value="0.75" />
+            </label>
+            <label>
+              <span>SFX</span>
+              <input id="sfx-volume" type="range" min="0" max="1" step="0.01" value="0.75" />
+            </label>
+            <label>
+              <span>Menu</span>
+              <input id="menu-volume" type="range" min="0" max="1" step="0.01" value="0.65" />
+            </label>
+            <label class="options-panel__mute">
+              <span>Mute</span>
+              <input id="mute-audio" type="checkbox" />
+            </label>
+          </div>
           <button class="menu-button menu-button--primary" type="button" data-menu-action="start">
             Select Vehicle
           </button>
