@@ -112,6 +112,22 @@ export class Track {
     };
   }
 
+  getProgressAtPosition(position) {
+    let nearestIndex = 0;
+    let nearestDistance = Infinity;
+
+    for (let i = 0; i < this.centerLinePoints.length; i += 1) {
+      const distance = this.#flatDistance(position, this.centerLinePoints[i]);
+
+      if (distance < nearestDistance) {
+        nearestIndex = i;
+        nearestDistance = distance;
+      }
+    }
+
+    return nearestIndex / this.centerLinePoints.length;
+  }
+
   #heightAt(t) {
     return (
       Math.sin(t * Math.PI * 2) * 10 +

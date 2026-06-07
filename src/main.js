@@ -155,6 +155,7 @@ function animate() {
   player.update(deltaTime, controls, track);
   updateRival(deltaTime);
   updateRaceProgress(deltaTime);
+  const racePosition = 1;
   cameraController.update(deltaTime, {
     speed: player.speed,
     steering: player.steerAmount,
@@ -166,9 +167,25 @@ function animate() {
     lap: lapState.currentLap,
     totalLaps: lapState.totalLaps,
     time: elapsedRaceTime,
+    rpm: calculateRpm(player),
+    position: racePosition,
+    totalRacers: 6,
+    track,
+    playerPosition: player.group.position,
+    rivalPositions: [rival.group.position],
+    checkpointName: lapState.lastCheckpointName,
   });
 
   renderer.render(scene, camera);
+}
+
+function calculateRpm(car) {
+  const speedRatio = Math.min(Math.abs(car.speed) / car.maxForwardSpeed, 1);
+  const gear = car.getGearLabel();
+  const gearOffset = gear === "N" || gear === "R" ? 0 : Number(gear) * 420;
+  const pulse = Math.sin(elapsedRaceTime * 18) * 140;
+
+  return Math.round(850 + speedRatio * 6500 + gearOffset + pulse);
 }
 
 function updateMenuCamera(time) {

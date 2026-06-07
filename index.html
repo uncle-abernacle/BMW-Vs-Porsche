@@ -10,22 +10,60 @@
     <canvas id="game-canvas" aria-label="BMW vs Porsche Racing game canvas"></canvas>
 
     <div id="hud" class="hud is-hidden" aria-live="polite">
-      <div class="hud__panel hud__speed">
-        <span class="hud__label">Speed</span>
-        <strong id="speed-readout">0</strong>
-        <span class="hud__unit">mph</span>
+      <div class="hud__top">
+        <div class="hud__panel hud__race">
+          <div>
+            <span class="hud__label">Lap</span>
+            <strong id="lap-current-readout">1</strong>
+            <span id="lap-total-readout">/ 3</span>
+          </div>
+          <div>
+            <span class="hud__label">Pos</span>
+            <strong id="position-readout">1</strong>
+            <span id="position-total-readout">/ 6</span>
+          </div>
+          <div>
+            <span class="hud__label">Time</span>
+            <strong id="timer-readout">00:00.000</strong>
+          </div>
+        </div>
+
+        <div class="hud__panel hud__help">
+          <span>WASD / Arrows</span>
+          <span>Space handbrake</span>
+          <span>R reset</span>
+        </div>
       </div>
 
-      <div class="hud__panel hud__status">
-        <span id="gear-readout">N</span>
-        <span id="lap-readout">Lap 1 / 3</span>
-        <span id="timer-readout">00:00.000</span>
-      </div>
+      <div class="hud__bottom">
+        <div class="hud__panel hud__gauge hud__speedometer">
+          <span class="hud__label">Speed</span>
+          <div class="gauge">
+            <div class="gauge__arc"></div>
+            <div id="speed-needle" class="gauge__needle"></div>
+            <strong id="speed-readout">000</strong>
+            <span class="hud__unit">mph</span>
+          </div>
+          <span id="gear-readout" class="hud__gear">N</span>
+        </div>
 
-      <div class="hud__panel hud__help">
-        <span>WASD / Arrows</span>
-        <span>Space handbrake</span>
-        <span>R reset</span>
+        <div class="hud__panel hud__gauge hud__tachometer">
+          <span class="hud__label">Tach</span>
+          <div class="gauge">
+            <div class="gauge__arc gauge__arc--tach"></div>
+            <div id="tach-needle" class="gauge__needle gauge__needle--tach"></div>
+            <strong id="rpm-readout">0.8</strong>
+            <span class="hud__unit">x1000</span>
+          </div>
+        </div>
+
+        <div class="hud__panel hud__minimap">
+          <div class="hud__minimap-head">
+            <span class="hud__label">Mini Map</span>
+            <span id="checkpoint-readout">Start</span>
+          </div>
+          <canvas id="minimap-canvas" width="220" height="150" aria-label="Track mini map"></canvas>
+        </div>
       </div>
     </div>
 
