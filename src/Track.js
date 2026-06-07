@@ -1,47 +1,49 @@
 import * as THREE from "three";
 
-// Track 1: German Countryside Circuit. The circuit is built from a closed
-// center-line spline and lightweight low-poly meshes so it keeps the early
-// 2000s console look without expensive assets or build tools.
+// Track 2: Autobahn Sprint. This track keeps the same public API as Track 1
+// while changing the world into a wide, fast, low-poly highway circuit.
 export class Track {
   constructor() {
-    this.name = "German Countryside Circuit";
+    this.name = "Autobahn Sprint";
     this.group = new THREE.Group();
     this.group.name = this.name;
     this.cameraCollisionObjects = [];
-    this.roadWidth = 18;
-    this.samples = 240;
+    this.roadWidth = 38;
+    this.samples = 260;
     this.totalLaps = 3;
-    this.checkpointRadius = 24;
+    this.checkpointRadius = 34;
 
     this.controlPoints = [
-      new THREE.Vector3(0, 0, 138),
-      new THREE.Vector3(2, 0, 58),
-      new THREE.Vector3(22, 0, -30),
-      new THREE.Vector3(78, 0, -118),
-      new THREE.Vector3(148, 0, -150),
-      new THREE.Vector3(216, 0, -82),
-      new THREE.Vector3(224, 0, 36),
-      new THREE.Vector3(164, 0, 120),
-      new THREE.Vector3(88, 0, 154),
-      new THREE.Vector3(18, 0, 154),
+      new THREE.Vector3(-18, 0, 210),
+      new THREE.Vector3(-8, 0, 86),
+      new THREE.Vector3(18, 0, -76),
+      new THREE.Vector3(86, 0, -246),
+      new THREE.Vector3(214, 0, -330),
+      new THREE.Vector3(370, 0, -292),
+      new THREE.Vector3(458, 0, -150),
+      new THREE.Vector3(452, 0, 34),
+      new THREE.Vector3(340, 0, 176),
+      new THREE.Vector3(168, 0, 226),
     ];
-    this.curve = new THREE.CatmullRomCurve3(this.controlPoints, true, "catmullrom", 0.45);
+
+    this.curve = new THREE.CatmullRomCurve3(this.controlPoints, true, "catmullrom", 0.28);
     this.centerLinePoints = this.#sampleCenterLine();
     this.checkpoints = this.#createCheckpoints();
-    this.startPosition = this.getPointOnCenterLine(0).add(new THREE.Vector3(-5, 0, 0));
+    this.startPosition = this.getPointOnCenterLine(0).add(new THREE.Vector3(-7, 0, 0));
     this.startRotation = this.#getHeadingAt(0);
 
     this.#buildTerrain();
-    this.#buildRoad();
-    this.#buildRoadDetails();
-    this.#buildCountryside();
+    this.#buildHighway();
+    this.#buildLaneDetails();
+    this.#buildOverpasses();
+    this.#buildSigns();
+    this.#buildSpeedScenery();
     this.#buildCheckpointGates();
   }
 
   getPointOnCenterLine(t) {
     const point = this.curve.getPointAt(THREE.MathUtils.euclideanModulo(t, 1));
-    point.y = 0.12;
+    point.y = 0.1;
     return point;
   }
 
@@ -62,9 +64,8 @@ export class Track {
     }
 
     const checkpoint = this.checkpoints[lapState.nextCheckpoint];
-    const distance = this.#flatDistance(position, checkpoint.position);
 
-    if (distance > checkpoint.radius) {
+    if (this.#flatDistance(position, checkpoint.position) > checkpoint.radius) {
       return lapState;
     }
 
@@ -94,8 +95,8 @@ export class Track {
 
     return {
       direction,
-      strength: Math.min(distanceFromRoad * 0.045, 0.95),
-      speedMultiplier: distanceFromRoad > 18 ? 0.965 : 0.982,
+      strength: Math.min(distanceFromRoad * 0.04, 0.85),
+      speedMultiplier: distanceFromRoad > 22 ? 0.972 : 0.988,
     };
   }
 
@@ -110,49 +111,72 @@ export class Track {
   }
 
   #createCheckpoints() {
-    const checkpointFractions = [0, 0.16, 0.32, 0.48, 0.64, 0.8];
-
-    return checkpointFractions.map((t, index) => ({
+    return [0, 0.14, 0.29, 0.44, 0.59, 0.74, 0.88].map((t, index) => ({
       id: index,
-      name: index === 0 ? "Start / Finish" : `Checkpoint ${index}`,
+      name: index === 0 ? "Start / Finish" : `Autobahn Sector ${index}`,
       t,
       position: this.getPointOnCenterLine(t),
       heading: this.#getHeadingAt(t),
-      radius: index === 0 ? 28 : this.checkpointRadius,
+      radius: index === 0 ? 38 : this.checkpointRadius,
     }));
   }
 
   #buildTerrain() {
-    const geometry = new THREE.PlaneGeometry(620, 560, 42, 38);
+    const geometry = new THREE.PlaneGeometry(860, 760, 26, 24);
     const positions = geometry.attributes.position;
 
     for (let i = 0; i < positions.count; i += 1) {
       const x = positions.getX(i);
       const y = positions.getY(i);
-      const hill =
-        Math.sin(x * 0.022) * 7.5 +
-        Math.cos(y * 0.018) * 6.5 +
-        Math.sin((x + y) * 0.012) * 4;
-      positions.setZ(i, hill);
+      const height = Math.sin(x * 0.01) * 3 + Math.cos(y * 0.012) * 4;
+      positions.setZ(i, height);
     }
 
     geometry.computeVertexNormals();
 
-    const ground = new THREE.Mesh(
+    const terrain = new THREE.Mesh(
       geometry,
       new THREE.MeshStandardMaterial({
-        color: 0x557445,
-        roughness: 0.96,
+        color: 0x59695c,
+        roughness: 0.95,
         flatShading: true,
       }),
     );
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(96, -3.8, 4);
-    ground.receiveShadow = true;
-    this.group.add(ground);
+    terrain.rotation.x = -Math.PI / 2;
+    terrain.position.set(220, -4.3, -56);
+    terrain.receiveShadow = true;
+    this.group.add(terrain);
   }
 
-  #buildRoad() {
+  #buildHighway() {
+    const geometry = this.#createRoadGeometry(this.roadWidth);
+    const highway = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({
+        color: 0x282b30,
+        roughness: 0.78,
+        metalness: 0.04,
+        flatShading: true,
+      }),
+    );
+    highway.receiveShadow = true;
+    this.group.add(highway);
+
+    const shoulderGeometry = this.#createRoadGeometry(this.roadWidth + 7);
+    const shoulder = new THREE.Mesh(
+      shoulderGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 0x55575a,
+        roughness: 0.86,
+        flatShading: true,
+      }),
+    );
+    shoulder.position.y = -0.025;
+    shoulder.receiveShadow = true;
+    this.group.add(shoulder);
+  }
+
+  #createRoadGeometry(width) {
     const vertices = [];
     const indices = [];
     const normals = [];
@@ -162,11 +186,11 @@ export class Track {
       const point = this.getPointOnCenterLine(t);
       const next = this.getPointOnCenterLine(t + 1 / this.samples);
       const tangent = next.sub(point).normalize();
-      const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
-      const left = point.clone().addScaledVector(normal, this.roadWidth * 0.5);
-      const right = point.clone().addScaledVector(normal, -this.roadWidth * 0.5);
+      const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
+      const left = point.clone().addScaledVector(side, width * 0.5);
+      const right = point.clone().addScaledVector(side, -width * 0.5);
 
-      vertices.push(left.x, 0.08, left.z, right.x, 0.08, right.z);
+      vertices.push(left.x, 0.1, left.z, right.x, 0.1, right.z);
       normals.push(0, 1, 0, 0, 1, 0);
 
       if (i < this.samples) {
@@ -179,47 +203,40 @@ export class Track {
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
     geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
     geometry.setIndex(indices);
-
-    const road = new THREE.Mesh(
-      geometry,
-      new THREE.MeshStandardMaterial({
-        color: 0x2b2d2f,
-        roughness: 0.82,
-        flatShading: true,
-      }),
-    );
-    road.receiveShadow = true;
-    this.group.add(road);
+    return geometry;
   }
 
-  #buildRoadDetails() {
-    const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xd8cf85, roughness: 0.65 });
-    const shoulderMaterial = new THREE.MeshStandardMaterial({ color: 0xe6e2cf, roughness: 0.72 });
+  #buildLaneDetails() {
+    const white = new THREE.MeshStandardMaterial({ color: 0xe9e4d0, roughness: 0.62 });
+    const yellow = new THREE.MeshStandardMaterial({ color: 0xdacb62, roughness: 0.65 });
+    const barrier = new THREE.MeshStandardMaterial({ color: 0x9ca3a5, roughness: 0.72, flatShading: true });
 
-    for (let i = 0; i < 72; i += 1) {
-      const t = i / 72;
+    for (let i = 0; i < 115; i += 1) {
+      const t = i / 115;
       const point = this.getPointOnCenterLine(t);
       const heading = this.#getHeadingAt(t);
-      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.035, 5.5), lineMaterial);
-      dash.position.set(point.x, 0.14, point.z);
-      dash.rotation.y = heading;
-      dash.receiveShadow = true;
-      this.group.add(dash);
-    }
 
-    for (let i = 0; i < 96; i += 1) {
-      const t = i / 96;
-      const point = this.getPointOnCenterLine(t);
-      const next = this.getPointOnCenterLine(t + 0.006);
-      const tangent = next.sub(point).normalize();
-      const normal = new THREE.Vector3(-tangent.z, 0, tangent.x);
+      for (const offset of [-12, -6, 6, 12]) {
+        const dash = this.#orientedBox(t, offset, 0.2, 0.04, 7.6, white);
+        dash.rotation.y = heading;
+        this.group.add(dash);
+      }
 
-      for (const side of [-1, 1]) {
-        const marker = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.05, 3), shoulderMaterial);
-        marker.position.copy(point).addScaledVector(normal, side * (this.roadWidth * 0.5 + 0.5));
-        marker.position.y = 0.16;
-        marker.rotation.y = Math.atan2(tangent.x, tangent.z);
-        this.group.add(marker);
+      if (i % 2 === 0) {
+        const median = this.#orientedBox(t, 0, 1.4, 0.9, 7, barrier);
+        median.position.y = 0.55;
+        median.rotation.y = heading;
+        median.castShadow = true;
+        this.group.add(median);
+        this.cameraCollisionObjects.push(median);
+      }
+
+      if (i % 5 === 0) {
+        const leftShoulder = this.#orientedBox(t, this.roadWidth * 0.5 + 1.2, 1, 0.05, 4, yellow);
+        const rightShoulder = this.#orientedBox(t, -this.roadWidth * 0.5 - 1.2, 1, 0.05, 4, yellow);
+        leftShoulder.rotation.y = heading;
+        rightShoulder.rotation.y = heading;
+        this.group.add(leftShoulder, rightShoulder);
       }
     }
 
@@ -228,212 +245,175 @@ export class Track {
 
   #addStartGrid() {
     const white = new THREE.MeshStandardMaterial({ color: 0xf2f2e8, roughness: 0.56 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.56 });
-    const start = this.checkpoints[0];
+    const black = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.56 });
 
-    for (let row = 0; row < 4; row += 1) {
-      for (let col = 0; col < 6; col += 1) {
-        const square = new THREE.Mesh(
-          new THREE.BoxGeometry(3.2, 0.045, 3.1),
-          (row + col) % 2 === 0 ? white : black,
-        );
-        square.position.set(-8 + col * 3.2, 0.18, 132 + row * 3.1);
-        square.rotation.y = start.heading;
+    for (let row = 0; row < 3; row += 1) {
+      for (let col = 0; col < 10; col += 1) {
+        const square = this.#orientedBox(0.002, -18 + col * 4, 3.8, 0.05, 3.4, (row + col) % 2 ? black : white);
+        square.position.add(this.#forwardAt(0.002).multiplyScalar(row * 3.4));
+        square.position.y = 0.23;
+        square.rotation.y = this.startRotation;
         square.receiveShadow = true;
         this.group.add(square);
       }
     }
   }
 
-  #buildCountryside() {
-    this.#buildTreeClusters();
-    this.#buildFarms();
-    this.#buildVillages();
-    this.#buildHayFields();
-    this.#buildDistantHills();
-  }
+  #buildOverpasses() {
+    const concrete = new THREE.MeshStandardMaterial({ color: 0x777a78, roughness: 0.84, flatShading: true });
+    const shadow = new THREE.MeshStandardMaterial({ color: 0x1b2025, roughness: 0.92 });
 
-  #buildTreeClusters() {
-    const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4526, roughness: 0.9 });
-    const leafMaterials = [
-      new THREE.MeshStandardMaterial({ color: 0x244f2b, roughness: 0.95, flatShading: true }),
-      new THREE.MeshStandardMaterial({ color: 0x315f34, roughness: 0.95, flatShading: true }),
-      new THREE.MeshStandardMaterial({ color: 0x486d31, roughness: 0.95, flatShading: true }),
-    ];
+    [0.18, 0.38, 0.66, 0.83].forEach((t, index) => {
+      const heading = this.#getHeadingAt(t) + Math.PI / 2;
+      const point = this.getPointOnCenterLine(t);
+      const bridge = new THREE.Group();
 
-    const treePositions = [
-      [-58, 96], [-82, 74], [-104, 36], [-72, -34], [-30, -92], [42, -172], [82, -196],
-      [168, -196], [248, -124], [266, -48], [260, 76], [206, 158], [134, 196], [62, 206],
-      [-24, 198], [-86, 152], [118, 70], [118, 24], [128, -28],
-    ];
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(72, 3.2, 16), concrete);
+      deck.position.set(point.x, 10.6, point.z);
+      deck.rotation.y = heading;
+      deck.castShadow = true;
+      deck.receiveShadow = true;
+      bridge.add(deck);
 
-    treePositions.forEach(([x, z], index) => {
-      for (let cluster = 0; cluster < 4; cluster += 1) {
-        const offsetX = Math.sin(index * 7.3 + cluster) * 10;
-        const offsetZ = Math.cos(index * 5.1 + cluster) * 9;
-        this.#addTree(x + offsetX, z + offsetZ, trunkMaterial, leafMaterials[index % leafMaterials.length]);
+      const shade = new THREE.Mesh(new THREE.BoxGeometry(62, 0.08, 14), shadow);
+      shade.position.set(point.x, 0.24, point.z);
+      shade.rotation.y = heading;
+      bridge.add(shade);
+
+      const side = new THREE.Vector3(Math.cos(heading), 0, -Math.sin(heading));
+      for (const offset of [-30, 30]) {
+        const support = new THREE.Mesh(new THREE.BoxGeometry(3.6, 10, 3.6), concrete);
+        support.position.copy(point).addScaledVector(side, offset);
+        support.position.y = 5;
+        support.castShadow = true;
+        bridge.add(support);
+        this.cameraCollisionObjects.push(support);
       }
+
+      bridge.name = `Overpass ${index + 1}`;
+      this.group.add(bridge);
+      this.cameraCollisionObjects.push(deck);
     });
   }
 
-  #addTree(x, z, trunkMaterial, leafMaterial) {
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, 4.2, 5), trunkMaterial);
-    trunk.position.set(x, 2, z);
-    trunk.castShadow = true;
-    this.group.add(trunk);
-
-    const leaves = new THREE.Mesh(new THREE.ConeGeometry(4.2, 9, 6), leafMaterial);
-    leaves.position.set(x, 7.6, z);
-    leaves.castShadow = true;
-    this.group.add(leaves);
-  }
-
-  #buildFarms() {
-    this.#addFarmstead(-104, -132, 0.28);
-    this.#addFarmstead(250, 126, -0.75);
-  }
-
-  #addFarmstead(x, z, rotation) {
-    const wall = new THREE.MeshStandardMaterial({ color: 0xc8b48d, roughness: 0.86 });
-    const roof = new THREE.MeshStandardMaterial({ color: 0x8f2f24, roughness: 0.88, flatShading: true });
-    const barn = new THREE.MeshStandardMaterial({ color: 0x9f3d2d, roughness: 0.82 });
-
-    this.#addBuilding(x, z, 16, 7, 12, wall, roof, rotation);
-    this.#addBuilding(x + 24, z + 10, 20, 8, 14, barn, roof, rotation + 0.08);
-    this.#addSilo(x + 42, z - 8);
-  }
-
-  #buildVillages() {
-    const wallColors = [0xc8c2aa, 0xd6d2c1, 0xbba98b, 0xd0b78f];
-    const roofColors = [0x823427, 0x6e2930, 0x8b5a34];
-    const villagePositions = [
-      [58, -204], [82, -218], [108, -208], [132, -220],
-      [244, 14], [266, 28], [238, 44],
-    ];
-
-    villagePositions.forEach(([x, z], index) => {
-      this.#addBuilding(
-        x,
-        z,
-        12 + (index % 2) * 4,
-        6,
-        10,
-        new THREE.MeshStandardMaterial({ color: wallColors[index % wallColors.length], roughness: 0.84 }),
-        new THREE.MeshStandardMaterial({
-          color: roofColors[index % roofColors.length],
-          roughness: 0.86,
-          flatShading: true,
-        }),
-        (index % 3) * 0.25,
-      );
-    });
-  }
-
-  #addBuilding(x, z, width, height, depth, wallMaterial, roofMaterial, rotation = 0) {
-    const house = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), wallMaterial);
-    body.position.y = height * 0.5;
-    body.castShadow = true;
-    body.receiveShadow = true;
-    house.add(body);
-
-    const roof = new THREE.Mesh(new THREE.ConeGeometry(width * 0.72, height * 0.58, 4), roofMaterial);
-    roof.position.y = height + height * 0.3;
-    roof.rotation.y = Math.PI * 0.25;
-    roof.castShadow = true;
-    house.add(roof);
-
-    house.position.set(x, 0, z);
-    house.rotation.y = rotation;
-    this.group.add(house);
-    this.cameraCollisionObjects.push(body);
-  }
-
-  #addSilo(x, z) {
-    const silo = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.2, 3.2, 18, 10),
-      new THREE.MeshStandardMaterial({ color: 0xbfc4bd, roughness: 0.76, flatShading: true }),
-    );
-    silo.position.set(x, 9, z);
-    silo.castShadow = true;
-    this.group.add(silo);
-    this.cameraCollisionObjects.push(silo);
-  }
-
-  #buildHayFields() {
-    const fieldMaterial = new THREE.MeshStandardMaterial({ color: 0xa98c3a, roughness: 0.94 });
-    const hayMaterial = new THREE.MeshStandardMaterial({ color: 0xc99b35, roughness: 0.9, flatShading: true });
+  #buildSigns() {
+    const blue = new THREE.MeshStandardMaterial({ color: 0x214e8a, roughness: 0.62 });
+    const green = new THREE.MeshStandardMaterial({ color: 0x1e6b4a, roughness: 0.62 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0xb8bdba, roughness: 0.55, metalness: 0.2 });
 
     [
-      [-130, 52, 58, 42],
-      [180, -176, 72, 34],
-      [230, 92, 62, 40],
-    ].forEach(([x, z, width, depth]) => {
-      const field = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), fieldMaterial);
-      field.rotation.x = -Math.PI / 2;
-      field.position.set(x, 0.02, z);
-      field.receiveShadow = true;
-      this.group.add(field);
+      [0.1, -26, "A7"],
+      [0.24, 27, "KOLN"],
+      [0.47, -27, "180"],
+      [0.57, 27, "A9"],
+      [0.76, -27, "AUSFAHRT"],
+      [0.92, 27, "SPRINT"],
+    ].forEach(([t, offset, label], index) => {
+      const material = index % 2 === 0 ? blue : green;
+      const point = this.#offsetPoint(t, offset);
+      const sign = new THREE.Group();
+      const heading = this.#getHeadingAt(t);
 
-      for (let i = 0; i < 9; i += 1) {
-        const bale = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 3), hayMaterial);
-        bale.position.set(
-          x - width * 0.35 + (i % 3) * width * 0.28,
-          1,
-          z - depth * 0.28 + Math.floor(i / 3) * depth * 0.28,
-        );
-        bale.rotation.y = i * 0.35;
-        bale.castShadow = true;
-        this.group.add(bale);
-      }
+      const post = new THREE.Mesh(new THREE.BoxGeometry(1.2, 8, 1.2), metal);
+      post.position.set(point.x, 4, point.z);
+      post.castShadow = true;
+      sign.add(post);
+
+      const board = new THREE.Mesh(new THREE.BoxGeometry(12, 5.4, 0.55), material);
+      board.position.set(point.x, 9.2, point.z);
+      board.rotation.y = heading + Math.PI / 2;
+      board.castShadow = true;
+      sign.add(board);
+
+      const text = this.#makeSignSprite(label);
+      text.position.set(point.x, 9.35, point.z);
+      text.rotation.y = board.rotation.y;
+      sign.add(text);
+
+      this.group.add(sign);
     });
   }
 
-  #buildDistantHills() {
-    const hillMaterial = new THREE.MeshStandardMaterial({
-      color: 0x6f8355,
-      roughness: 1,
+  #buildSpeedScenery() {
+    const soundWallMaterial = new THREE.MeshStandardMaterial({
+      color: 0x61717c,
+      roughness: 0.9,
       flatShading: true,
     });
+    const lampMaterial = new THREE.MeshStandardMaterial({ color: 0x2f363c, roughness: 0.68, metalness: 0.25 });
+    const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x9b9f9b, roughness: 0.86, flatShading: true });
 
-    for (let i = 0; i < 16; i += 1) {
-      const hill = new THREE.Mesh(new THREE.ConeGeometry(42 + (i % 4) * 8, 34 + (i % 3) * 12, 7), hillMaterial);
-      const angle = (i / 16) * Math.PI * 2;
-      hill.position.set(100 + Math.sin(angle) * 310, 11, Math.cos(angle) * 300);
-      hill.scale.z = 0.6;
-      hill.rotation.y = angle;
-      this.group.add(hill);
+    for (let i = 0; i < 46; i += 1) {
+      const t = i / 46;
+      const heading = this.#getHeadingAt(t);
+
+      for (const side of [-1, 1]) {
+        if (i % 2 === 0 && i > 3 && i < 43) {
+          const wall = this.#orientedBox(t, side * 34, 14, 7, 8, soundWallMaterial);
+          wall.position.y = 3.5;
+          wall.rotation.y = heading;
+          wall.castShadow = true;
+          this.group.add(wall);
+          this.cameraCollisionObjects.push(wall);
+        }
+
+        if (i % 5 === 0) {
+          const lamp = this.#orientedBox(t, side * 25, 1, 13, 1, lampMaterial);
+          lamp.position.y = 6.5;
+          lamp.rotation.y = heading;
+          lamp.castShadow = true;
+          this.group.add(lamp);
+        }
+      }
+    }
+
+    for (let i = 0; i < 22; i += 1) {
+      const t = i / 22;
+      const block = this.#orientedBox(t, i % 2 ? 58 : -58, 18 + (i % 3) * 8, 8, 16, blockMaterial);
+      block.position.y = 4;
+      block.rotation.y += (i % 4) * 0.28;
+      block.castShadow = true;
+      block.receiveShadow = true;
+      this.group.add(block);
     }
   }
 
   #buildCheckpointGates() {
-    const gateMaterial = new THREE.MeshStandardMaterial({ color: 0xf0df92, roughness: 0.62 });
+    const gateMaterial = new THREE.MeshStandardMaterial({ color: 0xd4e2ef, roughness: 0.55 });
 
     this.checkpoints.forEach((checkpoint, index) => {
-      if (index === 0) {
-        return;
-      }
+      if (index === 0) return;
 
-      const gate = new THREE.Group();
-      const side = new THREE.Vector3(Math.cos(checkpoint.heading), 0, -Math.sin(checkpoint.heading));
-
-      for (const direction of [-1, 1]) {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(1.2, 7.5, 1.2), gateMaterial);
-        post.position.copy(checkpoint.position).addScaledVector(side, direction * (this.roadWidth * 0.5 + 1.8));
-        post.position.y = 3.8;
-        post.castShadow = true;
-        gate.add(post);
-      }
-
-      const crossbar = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 5, 1.1, 1), gateMaterial);
-      crossbar.position.copy(checkpoint.position);
-      crossbar.position.y = 7.7;
-      crossbar.rotation.y = checkpoint.heading + Math.PI / 2;
-      crossbar.castShadow = true;
-      gate.add(crossbar);
+      const heading = checkpoint.heading + Math.PI / 2;
+      const gate = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 8, 1.2, 1.2), gateMaterial);
+      gate.position.copy(checkpoint.position);
+      gate.position.y = 11;
+      gate.rotation.y = heading;
+      gate.castShadow = true;
       gate.name = checkpoint.name;
       this.group.add(gate);
     });
+  }
+
+  #orientedBox(t, lateralOffset, width, height, depth, material) {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+    box.position.copy(this.#offsetPoint(t, lateralOffset));
+    box.position.y = height * 0.5 + 0.12;
+    box.rotation.y = this.#getHeadingAt(t);
+    return box;
+  }
+
+  #offsetPoint(t, lateralOffset) {
+    const point = this.getPointOnCenterLine(t);
+    const next = this.getPointOnCenterLine(t + 0.004);
+    const tangent = next.sub(point).normalize();
+    const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
+    return point.addScaledVector(side, lateralOffset);
+  }
+
+  #forwardAt(t) {
+    const point = this.getPointOnCenterLine(t);
+    return this.getPointOnCenterLine(t + 0.004).sub(point).normalize();
   }
 
   #nearestCenterLinePoint(position) {
@@ -442,7 +422,6 @@ export class Track {
 
     for (const point of this.centerLinePoints) {
       const distance = this.#flatDistance(position, point);
-
       if (distance < nearestDistance) {
         nearest = point;
         nearestDistance = distance;
@@ -462,5 +441,29 @@ export class Track {
     const dx = a.x - b.x;
     const dz = a.z - b.z;
     return Math.sqrt(dx * dx + dz * dz);
+  }
+
+  #makeSignSprite(label) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 96;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "#ffffff";
+    context.font = "700 42px Arial";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(label, 128, 48);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
+    sprite.scale.set(8, 3, 1);
+    return sprite;
   }
 }
