@@ -13,10 +13,11 @@ export class Track {
     this.samples = 280;
     this.totalLaps = 3;
     this.checkpointRadius = 22;
-    this.backgroundColor = 0xaec4d5;
-    this.fogColor = 0xaec4d5;
-    this.fogNear = 70;
-    this.fogFar = 390;
+    this.backgroundColor = 0xb9ddff;
+    this.skyColor = 0xc7e6ff;
+    this.fogColor = 0xc5d8df;
+    this.fogNear = 62;
+    this.fogFar = 345;
 
     this.controlPoints = [
       new THREE.Vector3(-18, 0, 132),
@@ -176,7 +177,8 @@ export class Track {
     const terrain = new THREE.Mesh(
       geometry,
       new THREE.MeshStandardMaterial({
-        color: 0x566657,
+        color: 0x617459,
+        emissive: 0x11180d,
         roughness: 0.98,
         flatShading: true,
       }),
@@ -191,8 +193,9 @@ export class Track {
     const road = new THREE.Mesh(
       this.#createRoadGeometry(this.roadWidth),
       new THREE.MeshStandardMaterial({
-        color: 0x303238,
-        roughness: 0.82,
+        color: 0x34363b,
+        emissive: 0x07080a,
+        roughness: 0.78,
         flatShading: true,
       }),
     );
@@ -202,7 +205,8 @@ export class Track {
     const shoulder = new THREE.Mesh(
       this.#createRoadGeometry(this.roadWidth + 4),
       new THREE.MeshStandardMaterial({
-        color: 0x6b6658,
+        color: 0x7c735d,
+        emissive: 0x151207,
         roughness: 0.94,
         flatShading: true,
       }),
@@ -243,9 +247,14 @@ export class Track {
   }
 
   #buildRoadDetails() {
-    const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xd9cf7c, roughness: 0.68 });
+    const lineMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe9d874,
+      emissive: 0x2d2505,
+      roughness: 0.62,
+    });
     const stoneMaterial = new THREE.MeshStandardMaterial({
-      color: 0x9b9686,
+      color: 0xa9a18b,
+      emissive: 0x15120b,
       roughness: 0.92,
       flatShading: true,
     });
@@ -276,8 +285,8 @@ export class Track {
   }
 
   #addStartGrid() {
-    const white = new THREE.MeshStandardMaterial({ color: 0xf0eee0, roughness: 0.6 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.6 });
+    const white = new THREE.MeshStandardMaterial({ color: 0xf7f2db, emissive: 0x2b2616, roughness: 0.58 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.58 });
 
     for (let row = 0; row < 3; row += 1) {
       for (let col = 0; col < 6; col += 1) {
@@ -291,11 +300,16 @@ export class Track {
 
   #buildMountains() {
     const rockMaterials = [
-      new THREE.MeshStandardMaterial({ color: 0x65706c, roughness: 1, flatShading: true }),
-      new THREE.MeshStandardMaterial({ color: 0x7a7d73, roughness: 1, flatShading: true }),
-      new THREE.MeshStandardMaterial({ color: 0x4c5857, roughness: 1, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x6d7773, emissive: 0x0d1110, roughness: 1, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x85877b, emissive: 0x12120d, roughness: 1, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x596463, emissive: 0x0c1111, roughness: 1, flatShading: true }),
     ];
-    const snowMaterial = new THREE.MeshStandardMaterial({ color: 0xdfe7e6, roughness: 0.92, flatShading: true });
+    const snowMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf0f3ed,
+      emissive: 0x202820,
+      roughness: 0.9,
+      flatShading: true,
+    });
 
     for (let i = 0; i < 20; i += 1) {
       const angle = (i / 20) * Math.PI * 2;
@@ -310,7 +324,7 @@ export class Track {
       mountain.position.set(x, height * 0.34 - 16, z);
       mountain.scale.z = 0.72;
       mountain.rotation.y = angle * 0.7;
-      mountain.castShadow = true;
+      mountain.castShadow = false;
       this.group.add(mountain);
 
       const snow = new THREE.Mesh(new THREE.ConeGeometry(15 + (i % 3) * 4, height * 0.22, 6), snowMaterial);
@@ -322,8 +336,13 @@ export class Track {
   }
 
   #buildTunnels() {
-    const tunnelMaterial = new THREE.MeshStandardMaterial({ color: 0x3c3b37, roughness: 0.92, flatShading: true });
-    const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x11151a, roughness: 0.95 });
+    const tunnelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x47443d,
+      emissive: 0x0a0907,
+      roughness: 0.92,
+      flatShading: true,
+    });
+    const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x10141a, emissive: 0x020304, roughness: 0.95 });
 
     [0.21, 0.71].forEach((t, index) => {
       const point = this.getPointOnCenterLine(t);
@@ -359,11 +378,16 @@ export class Track {
 
   #buildCliffsAndOverlooks() {
     const cliffMaterial = new THREE.MeshStandardMaterial({
-      color: 0x595a51,
+      color: 0x646257,
+      emissive: 0x0e0d0a,
       roughness: 1,
       flatShading: true,
     });
-    const overlookMaterial = new THREE.MeshStandardMaterial({ color: 0x8c8779, roughness: 0.86 });
+    const overlookMaterial = new THREE.MeshStandardMaterial({
+      color: 0x9b927c,
+      emissive: 0x16120a,
+      roughness: 0.84,
+    });
 
     for (let i = 0; i < 34; i += 1) {
       const t = i / 34;
@@ -393,9 +417,14 @@ export class Track {
   }
 
   #buildAlpineScenery() {
-    const trunk = new THREE.MeshStandardMaterial({ color: 0x5a3821, roughness: 0.9 });
-    const leaves = new THREE.MeshStandardMaterial({ color: 0x263f32, roughness: 0.96, flatShading: true });
-    const signMaterial = new THREE.MeshStandardMaterial({ color: 0xb84b32, roughness: 0.7 });
+    const trunk = new THREE.MeshStandardMaterial({ color: 0x684323, roughness: 0.9 });
+    const leaves = new THREE.MeshStandardMaterial({
+      color: 0x2f4d3a,
+      emissive: 0x061208,
+      roughness: 0.96,
+      flatShading: true,
+    });
+    const signMaterial = new THREE.MeshStandardMaterial({ color: 0xd55a38, emissive: 0x230703, roughness: 0.68 });
 
     for (let i = 0; i < 80; i += 1) {
       const t = i / 80;
@@ -416,12 +445,12 @@ export class Track {
   #addPine(x, z, trunkMaterial, leafMaterial) {
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.7, 4, 5), trunkMaterial);
     trunk.position.set(x, -1, z);
-    trunk.castShadow = true;
+    trunk.castShadow = false;
     this.group.add(trunk);
 
     const crown = new THREE.Mesh(new THREE.ConeGeometry(4.4, 9.5, 6), leafMaterial);
     crown.position.set(x, 5, z);
-    crown.castShadow = true;
+    crown.castShadow = false;
     this.group.add(crown);
   }
 

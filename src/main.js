@@ -9,6 +9,7 @@ import { TEAMS } from "./VehicleCatalog.js";
 import { AIController } from "./AIController.js";
 import { ChampionshipManager } from "./ChampionshipManager.js";
 import { AudioManager } from "./AudioManager.js";
+import { applyRendererPolish, buildAtmosphere } from "./VisualPolish.js";
 
 // The main module owns browser setup, scene wiring, and the frame loop.
 // Gameplay objects live in their own files so the project can grow without
@@ -22,11 +23,9 @@ const renderer = new THREE.WebGLRenderer({
   powerPreference: "high-performance",
 });
 
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+applyRendererPolish(renderer);
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0xb9ddff);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8fb7dc);
@@ -44,20 +43,21 @@ const camera = new THREE.PerspectiveCamera(
 const sun = new THREE.DirectionalLight(0xfff2ce, 3.1);
 sun.position.set(-80, 120, 70);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -180;
-sun.shadow.camera.right = 180;
-sun.shadow.camera.top = 180;
-sun.shadow.camera.bottom = -180;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -220;
+sun.shadow.camera.right = 220;
+sun.shadow.camera.top = 220;
+sun.shadow.camera.bottom = -220;
 sun.shadow.camera.near = 1;
 sun.shadow.camera.far = 420;
 scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x36402c, 1.55));
+scene.add(new THREE.HemisphereLight(0xd8edff, 0x5b6648, 1.7));
 
 const track = new Track();
 scene.add(track.group);
 scene.background = new THREE.Color(track.backgroundColor ?? 0x8fb7dc);
 scene.fog = new THREE.Fog(track.fogColor ?? 0x8fb7dc, track.fogNear ?? 120, track.fogFar ?? 620);
+buildAtmosphere(scene, track);
 
 let player = null;
 let cameraController = null;

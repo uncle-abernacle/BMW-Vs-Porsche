@@ -233,18 +233,21 @@ export class Car {
   #buildModel(bodyColor, stripeColor) {
     const bodyMaterial = new THREE.MeshStandardMaterial({
       color: bodyColor,
-      roughness: 0.42,
-      metalness: 0.28,
+      emissive: new THREE.Color(bodyColor).multiplyScalar(0.045),
+      roughness: 0.34,
+      metalness: 0.42,
     });
     const stripeMaterial = new THREE.MeshStandardMaterial({
       color: stripeColor,
-      roughness: 0.55,
-      metalness: 0.08,
+      emissive: new THREE.Color(stripeColor).multiplyScalar(0.04),
+      roughness: 0.48,
+      metalness: 0.16,
     });
     const glassMaterial = new THREE.MeshStandardMaterial({
-      color: 0x101820,
-      roughness: 0.2,
-      metalness: 0.1,
+      color: 0x111d26,
+      emissive: 0x071119,
+      roughness: 0.08,
+      metalness: 0.34,
     });
     const tireMaterial = new THREE.MeshStandardMaterial({
       color: 0x111111,
@@ -254,6 +257,23 @@ export class Car {
       color: 0xcfd7df,
       roughness: 0.32,
       metalness: 0.65,
+    });
+    const lightMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf5e6b2,
+      emissive: 0x8f6c28,
+      roughness: 0.28,
+      metalness: 0.08,
+    });
+    const tailLightMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb93628,
+      emissive: 0x5a0d08,
+      roughness: 0.36,
+    });
+    const shadowMaterial = new THREE.MeshBasicMaterial({
+      color: 0x050505,
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
     });
 
     const { width, length, height, cabinWidth, cabinLength, cabinHeight, cabinOffsetZ, spoilerWidth } =
@@ -284,6 +304,40 @@ export class Car {
     spoiler.position.set(0, lowerBody.position.y + height * 0.75, length * 0.48);
     spoiler.castShadow = true;
     this.group.add(spoiler);
+
+    const frontLightLeft = new THREE.Mesh(new THREE.BoxGeometry(width * 0.28, 0.18, 0.08), lightMaterial);
+    frontLightLeft.position.set(-width * 0.23, lowerBody.position.y + height * 0.12, -length * 0.51);
+    this.group.add(frontLightLeft);
+
+    const frontLightRight = frontLightLeft.clone();
+    frontLightRight.position.x = width * 0.23;
+    this.group.add(frontLightRight);
+
+    const tailLightLeft = new THREE.Mesh(new THREE.BoxGeometry(width * 0.25, 0.16, 0.08), tailLightMaterial);
+    tailLightLeft.position.set(-width * 0.24, lowerBody.position.y + height * 0.08, length * 0.51);
+    this.group.add(tailLightLeft);
+
+    const tailLightRight = tailLightLeft.clone();
+    tailLightRight.position.x = width * 0.24;
+    this.group.add(tailLightRight);
+
+    const reflectionStrip = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.82, 0.035, length * 0.18),
+      new THREE.MeshStandardMaterial({
+        color: 0xd6efff,
+        emissive: 0x375166,
+        roughness: 0.18,
+        metalness: 0.22,
+      }),
+    );
+    reflectionStrip.position.set(0, lowerBody.position.y + height * 0.55, -length * 0.22);
+    this.group.add(reflectionStrip);
+
+    const shadowBlob = new THREE.Mesh(new THREE.CircleGeometry(Math.max(width, length) * 0.62, 18), shadowMaterial);
+    shadowBlob.rotation.x = -Math.PI / 2;
+    shadowBlob.scale.z = 0.58;
+    shadowBlob.position.y = 0.035;
+    this.group.add(shadowBlob);
 
     const wheelX = width * 0.52;
     const wheelZ = length * 0.33;
