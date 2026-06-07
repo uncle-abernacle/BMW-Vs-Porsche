@@ -24,6 +24,7 @@ export class MenuController {
 
     this.selectedTeam = TEAMS[0];
     this.selectedVehicle = TEAMS[0].vehicles[0];
+    this.selectedMode = "quick-race";
     this.currentScreenName = "main";
     this.selectedIndexByScreen = new Map();
     this.previewCar = null;
@@ -42,7 +43,7 @@ export class MenuController {
       championship: {
         title: "Championship",
         kicker: "Series mode",
-        description: "A placeholder series ladder ready for future tracks, points, and rivals.",
+        description: "Race a three-round BMW vs Porsche series with points after every event.",
       },
       options: {
         title: "Options",
@@ -79,6 +80,7 @@ export class MenuController {
       this.onStart({
         team: this.selectedTeam,
         vehicle: this.selectedVehicle,
+        mode: this.selectedMode,
       });
     });
 
@@ -165,6 +167,9 @@ export class MenuController {
 
   #handleMenuAction(action) {
     if (action === "start") {
+      if (this.currentScreenName === "main") {
+        this.selectedMode = "quick-race";
+      }
       this.#showScreen("team");
       return;
     }
@@ -178,6 +183,7 @@ export class MenuController {
     this.modeTitle.textContent = mode.title;
     this.modeKicker.textContent = mode.kicker;
     this.modeDescription.textContent = mode.description;
+    this.selectedMode = action;
     this.#showScreen("mode");
   }
 

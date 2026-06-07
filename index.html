@@ -152,6 +152,39 @@
       </section>
     </main>
 
+    <section id="championship-overlay" class="championship-overlay is-hidden" aria-live="polite">
+      <div class="championship-panel">
+        <span id="championship-kicker" class="menu__eyebrow">Championship</span>
+        <h2 id="championship-title">Race Results</h2>
+        <p id="championship-summary"></p>
+
+        <div class="championship-table-wrap">
+          <table class="championship-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Driver</th>
+                <th>Last</th>
+                <th>Pts</th>
+              </tr>
+            </thead>
+            <tbody id="championship-standings"></tbody>
+          </table>
+        </div>
+
+        <div id="trophy-ceremony" class="trophy-ceremony is-hidden">
+          <div class="trophy-cup"></div>
+          <strong id="champion-name">Champion</strong>
+        </div>
+
+        <div class="championship-actions">
+          <button id="championship-continue" class="menu-button menu-button--primary" type="button">
+            Continue
+          </button>
+        </div>
+      </div>
+    </section>
+
     <div id="loading" class="loading">Starting BMW vs Porsche Racing...</div>
 
     <script type="importmap">

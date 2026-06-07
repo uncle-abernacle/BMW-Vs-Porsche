@@ -7,6 +7,7 @@ import { HUD } from "./HUD.js";
 import { MenuController } from "./MenuController.js";
 import { TEAMS } from "./VehicleCatalog.js";
 import { AIController } from "./AIController.js";
+import { ChampionshipManager } from "./ChampionshipManager.js";
 
 // The main module owns browser setup, scene wiring, and the frame loop.
 // Gameplay objects live in their own files so the project can grow without
@@ -65,13 +66,25 @@ let aiRacers = [];
 const input = new InputManager();
 const hud = new HUD();
 const clock = new THREE.Clock();
+const championship = new ChampionshipManager();
 const menu = new MenuController({
-  onStart: ({ vehicle }) => startRace(vehicle),
+  onStart: ({ vehicle, mode }) => startRace(vehicle, mode),
 });
+const championshipOverlay = document.querySelector("#championship-overlay");
+const championshipKicker = document.querySelector("#championship-kicker");
+const championshipTitle = document.querySelector("#championship-title");
+const championshipSummary = document.querySelector("#championship-summary");
+const championshipStandings = document.querySelector("#championship-standings");
+const championshipContinue = document.querySelector("#championship-continue");
+const trophyCeremony = document.querySelector("#trophy-ceremony");
+const championName = document.querySelector("#champion-name");
 
 let elapsedRaceTime = 0;
 let menuCameraTime = 0;
 let lapState = track.createLapState();
+let activeMode = "quick-race";
+let playerVehicle = null;
+let raceFinished = false;
 
 function resetRace() {
   if (!player || !cameraController) {
@@ -82,10 +95,13 @@ function resetRace() {
   resetAiRacers();
   elapsedRaceTime = 0;
   lapState = track.createLapState();
+  raceFinished = false;
   cameraController.snapToTarget();
 }
 
-function startRace(vehicle) {
+function startRace(vehicle, mode = activeMode) {
+  activeMode = mode;
+  playerVehicle = vehicle;
   if (player) {
     scene.remove(player.group);
   }
@@ -99,6 +115,12 @@ function startRace(vehicle) {
   });
   scene.add(player.group);
   createAiRacers(vehicle.id);
+
+  if (activeMode === "championship") {
+    championship.start(["Player", ...aiRacers.map((racer) => racer.car.name)]);
+  } else {
+    championship.stop();
+  }
 
   cameraController = new CameraController(camera, player.group, {
     collisionObjects: track.cameraCollisionObjects,
@@ -158,6 +180,10 @@ function resetAiRacers() {
 function updateRaceProgress(deltaTime) {
   elapsedRaceTime += deltaTime;
   track.updateLapProgress(player.group.position, lapState);
+
+  if (lapState.finished && !raceFinished) {
+    finishRace();
+  }
 }
 
 function updateRival(deltaTime) {
@@ -214,6 +240,107 @@ function animate() {
   });
 
   renderer.render(scene, camera);
+}
+
+function finishRace() {
+  raceFinished = true;
+  raceStarted = false;
+  document.querySelector("#hud").classList.add("is-hidden");
+
+  if (activeMode === "championship") {
+    const snapshot = championship.recordRace(getRaceResults());
+    showChampionshipResults(snapshot);
+    return;
+  }
+
+  showSingleRaceResults();
+}
+
+function getRaceResults() {
+  const racers = [
+    {
+      name: "Player",
+      score: (lapState.currentLap - 1) + track.getProgressAtPosition(player.group.position),
+    },
+    ...aiRacers.map((racer) => ({
+      name: racer.car.name,
+      score: racer.controller.getProgressScore(racer.lapState),
+    })),
+  ];
+
+  return racers.sort((a, b) => b.score - a.score);
+}
+
+function showChampionshipResults(snapshot) {
+  championshipOverlay.classList.remove("is-hidden");
+  trophyCeremony.classList.toggle("is-hidden", !snapshot.isFinalRace);
+  championshipKicker.textContent = snapshot.isFinalRace ? "Trophy Ceremony" : "Championship Standings";
+  championshipTitle.textContent = snapshot.isFinalRace ? "Series Complete" : `Race ${snapshot.raceNumber} Results`;
+  championshipSummary.textContent = `${snapshot.raceName} complete. Points awarded: 10, 8, 6, 4, 2, 1.`;
+  championshipContinue.textContent = snapshot.isFinalRace ? "Main Menu" : "Next Race";
+  championName.textContent = snapshot.champion?.name ?? "Champion";
+  renderStandings(snapshot.standings);
+
+  championshipContinue.onclick = () => {
+    championshipOverlay.classList.add("is-hidden");
+
+    if (snapshot.isFinalRace) {
+      showMainMenu();
+      return;
+    }
+
+    championship.advanceRace();
+    startNextChampionshipRace();
+  };
+}
+
+function showSingleRaceResults() {
+  const results = getRaceResults().map((result, index) => ({
+    ...result,
+    rank: index + 1,
+    lastPosition: index + 1,
+    points: [10, 8, 6, 4, 2, 1][index],
+  }));
+
+  championshipOverlay.classList.remove("is-hidden");
+  trophyCeremony.classList.add("is-hidden");
+  championshipKicker.textContent = "Race Complete";
+  championshipTitle.textContent = "Results";
+  championshipSummary.textContent = "Final order for this event.";
+  championshipContinue.textContent = "Main Menu";
+  renderStandings(results);
+  championshipContinue.onclick = () => {
+    championshipOverlay.classList.add("is-hidden");
+    showMainMenu();
+  };
+}
+
+function startNextChampionshipRace() {
+  raceStarted = true;
+  document.querySelector("#hud").classList.remove("is-hidden");
+  resetRace();
+}
+
+function showMainMenu() {
+  raceStarted = false;
+  activeMode = "quick-race";
+  championship.stop();
+  document.querySelector("#menu").classList.remove("is-hidden");
+}
+
+function renderStandings(standings) {
+  championshipStandings.innerHTML = standings
+    .map(
+      (entry) => `
+        <tr>
+          <td>${entry.rank}</td>
+          <td>${entry.name}</td>
+          <td>${entry.lastPosition ?? "-"}</td>
+          <td>${entry.points}</td>
+        </tr>
+      `,
+    )
+    .join("");
 }
 
 function calculateRacePosition() {
