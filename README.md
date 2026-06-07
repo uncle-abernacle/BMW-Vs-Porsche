@@ -1,16 +1,19 @@
 # BMW vs Porsche Racing
 
-A complete starter project for a browser-based 3D arcade racing game inspired by PS2-era racers.
+BMW vs Porsche Racing is a browser-based 3D arcade racing game inspired by early-2000s console racers. It runs as a static site with HTML, CSS, JavaScript, ES modules, and Three.js.
 
-## Run Locally
+No backend, package install, bundler, or build step is required.
 
-Open `index.html` in a browser, or serve the folder with any static file server.
+## Features
 
-```bash
-python -m http.server 8080
-```
-
-Then visit `http://localhost:8080`.
+- PS2-style animated menus, vehicle selection, options, and championship flow
+- Arcade driving physics with smooth steering, drifting, handbrake, reset, and MPH speed display
+- Third-person chase camera with interpolation, tilt, and collision prevention
+- Low-poly Alpine Pass race environment with checkpoints and lap detection
+- Five AI opponents with reusable AI controller behavior
+- Race HUD with speedometer, tachometer, lap, timer, position, and mini map
+- Web Audio engine, tire, collision, menu, countdown, mute, and volume controls
+- Static GitHub Pages-ready file paths
 
 ## Controls
 
@@ -19,19 +22,80 @@ Then visit `http://localhost:8080`.
 - `A` / `ArrowLeft`: steer left
 - `D` / `ArrowRight`: steer right
 - `Space`: handbrake
-- `R`: reset race
+- `R`: reset vehicle
+- `Enter`: confirm menu selection
+- `Esc`: go back in menus
 
-## Structure
+## Installation
 
-- `index.html`: page shell, import map, canvas, HUD
-- `styles.css`: full-screen game layout and racing HUD
-- `src/main.js`: Three.js setup and game loop
-- `src/Car.js`: placeholder vehicle model and arcade handling
-- `src/Track.js`: flat starter oval, road markings, scenery, bounds
-- `src/CameraController.js`: chase camera behavior
-- `src/InputManager.js`: keyboard input state
-- `src/HUD.js`: speed, lap, gear, and timer display
+Clone the repository:
 
-## GitHub Pages
+```bash
+git clone https://github.com/YOUR-USERNAME/YOUR-REPOSITORY.git
+cd YOUR-REPOSITORY
+```
 
-This project is static and does not require a backend or build tools. Push it to GitHub and enable GitHub Pages from the repository settings.
+There are no dependencies to install. Three.js is loaded through the import map in `index.html`.
+
+## Run Locally
+
+Use any static file server from the project root:
+
+```bash
+python -m http.server 8080
+```
+
+Then open:
+
+```text
+http://localhost:8080/
+```
+
+Modern browsers usually block ES modules loaded from `file://`, so a static server is recommended for local testing.
+
+## GitHub Pages Deployment
+
+1. Push this project to a GitHub repository.
+2. Open the repository on GitHub.
+3. Go to `Settings` -> `Pages`.
+4. Under `Build and deployment`, choose `Deploy from a branch`.
+5. Select the branch that contains this project, usually `main` or `master`.
+6. Select `/ (root)` as the folder.
+7. Save the settings.
+
+GitHub Pages will serve `index.html` from the repository root. All local asset and module paths use `./` relative paths, so the game works from both the root domain and a project Pages URL such as:
+
+```text
+https://YOUR-USERNAME.github.io/YOUR-REPOSITORY/
+```
+
+## Production Structure
+
+```text
+BMW VS PORSCHE/
+├── .gitignore
+├── .nojekyll
+├── README.md
+├── index.html
+├── styles.css
+└── src/
+    ├── AIController.js
+    ├── AudioManager.js
+    ├── CameraController.js
+    ├── Car.js
+    ├── ChampionshipManager.js
+    ├── HUD.js
+    ├── InputManager.js
+    ├── MenuController.js
+    ├── Track.js
+    ├── VehicleCatalog.js
+    ├── VisualPolish.js
+    └── main.js
+```
+
+## Module Notes
+
+- `index.html` defines the Three.js import map and loads `./src/main.js`.
+- All project modules import each other with relative `./` paths.
+- No generated files or local development folders are required for deployment.
+- `.nojekyll` is included so GitHub Pages serves the repository as plain static files.

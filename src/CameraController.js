@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 // A chase camera is central to the arcade racer feel. This controller keeps
 // the camera behind and above the player's car, with mild speed-based pullback
-// so acceleration is visible even on a flat starter course.
+// so acceleration stays visible across straights, hills, and hairpins.
 export class CameraController {
   constructor(camera, target, { collisionObjects = [] } = {}) {
     this.camera = camera;
