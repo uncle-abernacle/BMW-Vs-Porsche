@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BMW vs Porsche Racing</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <canvas id="game-canvas" aria-label="BMW vs Porsche Racing game canvas"></canvas>
+
+    <div id="hud" class="hud is-hidden" aria-live="polite">
+      <div class="hud__panel hud__speed">
+        <span class="hud__label">Speed</span>
+        <strong id="speed-readout">0</strong>
+        <span class="hud__unit">mph</span>
+      </div>
+
+      <div class="hud__panel hud__status">
+        <span id="gear-readout">N</span>
+        <span id="lap-readout">Lap 1 / 3</span>
+        <span id="timer-readout">00:00.000</span>
+      </div>
+
+      <div class="hud__panel hud__help">
+        <span>WASD / Arrows</span>
+        <span>Space handbrake</span>
+        <span>R reset</span>
+      </div>
+    </div>
+
+    <main id="menu" class="menu">
+      <section class="menu__screen is-active" data-menu-screen="main" aria-labelledby="main-menu-title">
+        <div class="main-menu-layout">
+          <div class="menu__header">
+            <span class="menu__eyebrow">Underground circuit build 2004</span>
+            <h1 id="main-menu-title">BMW vs Porsche Racing</h1>
+            <p>Choose a mode, pick a generic inspired machine, and launch onto the test track.</p>
+          </div>
+
+          <nav class="mode-list" aria-label="Main menu">
+            <button class="mode-button is-focused" type="button" data-menu-action="start">
+              <span>01</span>
+              <strong>Start Game</strong>
+            </button>
+            <button class="mode-button" type="button" data-menu-action="quick-race">
+              <span>02</span>
+              <strong>Quick Race</strong>
+            </button>
+            <button class="mode-button" type="button" data-menu-action="time-trial">
+              <span>03</span>
+              <strong>Time Trial</strong>
+            </button>
+            <button class="mode-button" type="button" data-menu-action="championship">
+              <span>04</span>
+              <strong>Championship</strong>
+            </button>
+            <button class="mode-button" type="button" data-menu-action="options">
+              <span>05</span>
+              <strong>Options</strong>
+            </button>
+          </nav>
+
+          <div class="menu-hint">D-pad / arrows select • Enter confirm • Esc back</div>
+        </div>
+      </section>
+
+      <section class="menu__screen" data-menu-screen="mode" aria-labelledby="mode-menu-title">
+        <div class="menu__topbar">
+          <button class="menu-button menu-button--ghost" type="button" data-menu-back="main">Back</button>
+          <h2 id="mode-menu-title">Mode</h2>
+        </div>
+
+        <div class="mode-brief">
+          <span id="mode-kicker" class="menu__eyebrow">Arcade mode</span>
+          <h3 id="mode-title">Quick Race</h3>
+          <p id="mode-description">Jump straight into a one-off event using your selected vehicle.</p>
+          <button class="menu-button menu-button--primary" type="button" data-menu-action="start">
+            Select Vehicle
+          </button>
+        </div>
+      </section>
+
+      <section class="menu__screen" data-menu-screen="team" aria-labelledby="team-menu-title">
+        <div class="menu__topbar">
+          <button class="menu-button menu-button--ghost" type="button" data-menu-back="main">Back</button>
+          <h2 id="team-menu-title">Select Team</h2>
+        </div>
+
+        <div id="team-grid" class="menu-grid menu-grid--teams"></div>
+      </section>
+
+      <section class="menu__screen menu__screen--vehicle" data-menu-screen="vehicle" aria-labelledby="vehicle-menu-title">
+        <div class="menu__topbar">
+          <button class="menu-button menu-button--ghost" type="button" data-menu-back="team">Back</button>
+          <h2 id="vehicle-menu-title">Select Vehicle</h2>
+        </div>
+
+        <div class="vehicle-select">
+          <div class="vehicle-select__preview">
+            <canvas id="vehicle-preview" aria-label="Rotating selected vehicle preview"></canvas>
+          </div>
+
+          <div class="vehicle-select__details">
+            <span class="menu__eyebrow">No official logos or badges</span>
+            <h3 id="vehicle-title">Vehicle</h3>
+            <p id="vehicle-description"></p>
+            <div id="vehicle-grid" class="menu-grid menu-grid--vehicles"></div>
+            <button id="start-race" class="menu-button menu-button--primary" type="button">
+              Race
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="loading" class="loading">Starting BMW vs Porsche Racing...</div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.165.0/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
