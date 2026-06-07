@@ -53,6 +53,8 @@ scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x36402c, 1.55));
 
 const track = new Track();
 scene.add(track.group);
+scene.background = new THREE.Color(track.backgroundColor ?? 0x8fb7dc);
+scene.fog = new THREE.Fog(track.fogColor ?? 0x8fb7dc, track.fogNear ?? 120, track.fogFar ?? 620);
 
 let player = null;
 let cameraController = null;

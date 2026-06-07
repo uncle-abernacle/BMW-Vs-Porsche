@@ -1,49 +1,61 @@
 import * as THREE from "three";
 
-// Track 2: Autobahn Sprint. This track keeps the same public API as Track 1
-// while changing the world into a wide, fast, low-poly highway circuit.
+// Track 3: Alpine Pass. The road is a narrow low-poly mountain loop with
+// hairpins, tunnels, cliff edges, scenic overlooks, fog-friendly silhouettes,
+// and ordered checkpoint/lap logic.
 export class Track {
   constructor() {
-    this.name = "Autobahn Sprint";
+    this.name = "Alpine Pass";
     this.group = new THREE.Group();
     this.group.name = this.name;
     this.cameraCollisionObjects = [];
-    this.roadWidth = 38;
-    this.samples = 260;
+    this.roadWidth = 15;
+    this.samples = 280;
     this.totalLaps = 3;
-    this.checkpointRadius = 34;
+    this.checkpointRadius = 22;
+    this.backgroundColor = 0xaec4d5;
+    this.fogColor = 0xaec4d5;
+    this.fogNear = 70;
+    this.fogFar = 390;
 
     this.controlPoints = [
-      new THREE.Vector3(-18, 0, 210),
-      new THREE.Vector3(-8, 0, 86),
-      new THREE.Vector3(18, 0, -76),
-      new THREE.Vector3(86, 0, -246),
-      new THREE.Vector3(214, 0, -330),
-      new THREE.Vector3(370, 0, -292),
-      new THREE.Vector3(458, 0, -150),
-      new THREE.Vector3(452, 0, 34),
-      new THREE.Vector3(340, 0, 176),
-      new THREE.Vector3(168, 0, 226),
+      new THREE.Vector3(-18, 0, 132),
+      new THREE.Vector3(-12, 0, 42),
+      new THREE.Vector3(70, 0, -38),
+      new THREE.Vector3(28, 0, -118),
+      new THREE.Vector3(-82, 0, -92),
+      new THREE.Vector3(-142, 0, -10),
+      new THREE.Vector3(-92, 0, 72),
+      new THREE.Vector3(44, 0, 92),
+      new THREE.Vector3(142, 0, 36),
+      new THREE.Vector3(124, 0, -78),
+      new THREE.Vector3(24, 0, -168),
+      new THREE.Vector3(-126, 0, -154),
+      new THREE.Vector3(-210, 0, -46),
+      new THREE.Vector3(-164, 0, 104),
+      new THREE.Vector3(-62, 0, 172),
     ];
 
-    this.curve = new THREE.CatmullRomCurve3(this.controlPoints, true, "catmullrom", 0.28);
+    this.curve = new THREE.CatmullRomCurve3(this.controlPoints, true, "catmullrom", 0.7);
     this.centerLinePoints = this.#sampleCenterLine();
     this.checkpoints = this.#createCheckpoints();
-    this.startPosition = this.getPointOnCenterLine(0).add(new THREE.Vector3(-7, 0, 0));
+    this.startPosition = this.getPointOnCenterLine(0).add(new THREE.Vector3(-4, 0, 0));
     this.startRotation = this.#getHeadingAt(0);
 
     this.#buildTerrain();
-    this.#buildHighway();
-    this.#buildLaneDetails();
-    this.#buildOverpasses();
-    this.#buildSigns();
-    this.#buildSpeedScenery();
+    this.#buildRoad();
+    this.#buildRoadDetails();
+    this.#buildMountains();
+    this.#buildTunnels();
+    this.#buildCliffsAndOverlooks();
+    this.#buildAlpineScenery();
     this.#buildCheckpointGates();
   }
 
   getPointOnCenterLine(t) {
-    const point = this.curve.getPointAt(THREE.MathUtils.euclideanModulo(t, 1));
-    point.y = 0.1;
+    const wrapped = THREE.MathUtils.euclideanModulo(t, 1);
+    const point = this.curve.getPointAt(wrapped);
+    point.y = this.#heightAt(wrapped) + 0.12;
     return point;
   }
 
@@ -95,9 +107,17 @@ export class Track {
 
     return {
       direction,
-      strength: Math.min(distanceFromRoad * 0.04, 0.85),
-      speedMultiplier: distanceFromRoad > 22 ? 0.972 : 0.988,
+      strength: Math.min(distanceFromRoad * 0.055, 1.05),
+      speedMultiplier: distanceFromRoad > 12 ? 0.958 : 0.978,
     };
+  }
+
+  #heightAt(t) {
+    return (
+      Math.sin(t * Math.PI * 2) * 10 +
+      Math.sin(t * Math.PI * 6 + 0.8) * 5 +
+      Math.cos(t * Math.PI * 10) * 2
+    );
   }
 
   #sampleCenterLine() {
@@ -111,25 +131,28 @@ export class Track {
   }
 
   #createCheckpoints() {
-    return [0, 0.14, 0.29, 0.44, 0.59, 0.74, 0.88].map((t, index) => ({
+    return [0, 0.12, 0.25, 0.38, 0.51, 0.65, 0.78, 0.9].map((t, index) => ({
       id: index,
-      name: index === 0 ? "Start / Finish" : `Autobahn Sector ${index}`,
+      name: index === 0 ? "Start / Finish" : `Hairpin Gate ${index}`,
       t,
       position: this.getPointOnCenterLine(t),
       heading: this.#getHeadingAt(t),
-      radius: index === 0 ? 38 : this.checkpointRadius,
+      radius: index === 0 ? 26 : this.checkpointRadius,
     }));
   }
 
   #buildTerrain() {
-    const geometry = new THREE.PlaneGeometry(860, 760, 26, 24);
+    const geometry = new THREE.PlaneGeometry(620, 620, 34, 34);
     const positions = geometry.attributes.position;
 
     for (let i = 0; i < positions.count; i += 1) {
       const x = positions.getX(i);
       const y = positions.getY(i);
-      const height = Math.sin(x * 0.01) * 3 + Math.cos(y * 0.012) * 4;
-      positions.setZ(i, height);
+      const ridge =
+        Math.sin(x * 0.018) * 16 +
+        Math.cos(y * 0.016) * 14 +
+        Math.sin((x - y) * 0.012) * 9;
+      positions.setZ(i, ridge - 18);
     }
 
     geometry.computeVertexNormals();
@@ -137,41 +160,38 @@ export class Track {
     const terrain = new THREE.Mesh(
       geometry,
       new THREE.MeshStandardMaterial({
-        color: 0x59695c,
-        roughness: 0.95,
+        color: 0x566657,
+        roughness: 0.98,
         flatShading: true,
       }),
     );
     terrain.rotation.x = -Math.PI / 2;
-    terrain.position.set(220, -4.3, -56);
+    terrain.position.set(-38, -8, -12);
     terrain.receiveShadow = true;
     this.group.add(terrain);
   }
 
-  #buildHighway() {
-    const geometry = this.#createRoadGeometry(this.roadWidth);
-    const highway = new THREE.Mesh(
-      geometry,
+  #buildRoad() {
+    const road = new THREE.Mesh(
+      this.#createRoadGeometry(this.roadWidth),
       new THREE.MeshStandardMaterial({
-        color: 0x282b30,
-        roughness: 0.78,
-        metalness: 0.04,
+        color: 0x303238,
+        roughness: 0.82,
         flatShading: true,
       }),
     );
-    highway.receiveShadow = true;
-    this.group.add(highway);
+    road.receiveShadow = true;
+    this.group.add(road);
 
-    const shoulderGeometry = this.#createRoadGeometry(this.roadWidth + 7);
     const shoulder = new THREE.Mesh(
-      shoulderGeometry,
+      this.#createRoadGeometry(this.roadWidth + 4),
       new THREE.MeshStandardMaterial({
-        color: 0x55575a,
-        roughness: 0.86,
+        color: 0x6b6658,
+        roughness: 0.94,
         flatShading: true,
       }),
     );
-    shoulder.position.y = -0.025;
+    shoulder.position.y = -0.04;
     shoulder.receiveShadow = true;
     this.group.add(shoulder);
   }
@@ -185,12 +205,12 @@ export class Track {
       const t = i / this.samples;
       const point = this.getPointOnCenterLine(t);
       const next = this.getPointOnCenterLine(t + 1 / this.samples);
-      const tangent = next.sub(point).normalize();
-      const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
+      const tangent = next.clone().sub(point).normalize();
+      const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
       const left = point.clone().addScaledVector(side, width * 0.5);
       const right = point.clone().addScaledVector(side, -width * 0.5);
 
-      vertices.push(left.x, 0.1, left.z, right.x, 0.1, right.z);
+      vertices.push(left.x, left.y, left.z, right.x, right.y, right.z);
       normals.push(0, 1, 0, 0, 1, 0);
 
       if (i < this.samples) {
@@ -206,37 +226,33 @@ export class Track {
     return geometry;
   }
 
-  #buildLaneDetails() {
-    const white = new THREE.MeshStandardMaterial({ color: 0xe9e4d0, roughness: 0.62 });
-    const yellow = new THREE.MeshStandardMaterial({ color: 0xdacb62, roughness: 0.65 });
-    const barrier = new THREE.MeshStandardMaterial({ color: 0x9ca3a5, roughness: 0.72, flatShading: true });
+  #buildRoadDetails() {
+    const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xd9cf7c, roughness: 0.68 });
+    const stoneMaterial = new THREE.MeshStandardMaterial({
+      color: 0x9b9686,
+      roughness: 0.92,
+      flatShading: true,
+    });
 
-    for (let i = 0; i < 115; i += 1) {
-      const t = i / 115;
-      const point = this.getPointOnCenterLine(t);
-      const heading = this.#getHeadingAt(t);
+    for (let i = 0; i < 82; i += 1) {
+      const t = i / 82;
+      const marker = this.#orientedBox(t, 0, 0.45, 0.04, 4.3, lineMaterial);
+      marker.position.y += 0.12;
+      this.group.add(marker);
+    }
 
-      for (const offset of [-12, -6, 6, 12]) {
-        const dash = this.#orientedBox(t, offset, 0.2, 0.04, 7.6, white);
-        dash.rotation.y = heading;
-        this.group.add(dash);
-      }
+    for (let i = 0; i < 112; i += 1) {
+      const t = i / 112;
+      const insideHairpin = Math.sin(t * Math.PI * 8) > 0.35;
 
-      if (i % 2 === 0) {
-        const median = this.#orientedBox(t, 0, 1.4, 0.9, 7, barrier);
-        median.position.y = 0.55;
-        median.rotation.y = heading;
-        median.castShadow = true;
-        this.group.add(median);
-        this.cameraCollisionObjects.push(median);
-      }
-
-      if (i % 5 === 0) {
-        const leftShoulder = this.#orientedBox(t, this.roadWidth * 0.5 + 1.2, 1, 0.05, 4, yellow);
-        const rightShoulder = this.#orientedBox(t, -this.roadWidth * 0.5 - 1.2, 1, 0.05, 4, yellow);
-        leftShoulder.rotation.y = heading;
-        rightShoulder.rotation.y = heading;
-        this.group.add(leftShoulder, rightShoulder);
+      for (const side of [-1, 1]) {
+        if (insideHairpin || i % 3 === 0) {
+          const block = this.#orientedBox(t, side * (this.roadWidth * 0.5 + 1.2), 1.2, 1.2, 2.8, stoneMaterial);
+          block.castShadow = true;
+          block.receiveShadow = true;
+          this.group.add(block);
+          this.cameraCollisionObjects.push(block);
+        }
       }
     }
 
@@ -244,152 +260,178 @@ export class Track {
   }
 
   #addStartGrid() {
-    const white = new THREE.MeshStandardMaterial({ color: 0xf2f2e8, roughness: 0.56 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.56 });
+    const white = new THREE.MeshStandardMaterial({ color: 0xf0eee0, roughness: 0.6 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.6 });
 
     for (let row = 0; row < 3; row += 1) {
-      for (let col = 0; col < 10; col += 1) {
-        const square = this.#orientedBox(0.002, -18 + col * 4, 3.8, 0.05, 3.4, (row + col) % 2 ? black : white);
-        square.position.add(this.#forwardAt(0.002).multiplyScalar(row * 3.4));
-        square.position.y = 0.23;
-        square.rotation.y = this.startRotation;
-        square.receiveShadow = true;
+      for (let col = 0; col < 6; col += 1) {
+        const square = this.#orientedBox(0.002, -7.5 + col * 3, 2.8, 0.045, 3, (row + col) % 2 ? black : white);
+        square.position.add(this.#forwardAt(0.002).multiplyScalar(row * 3));
+        square.position.y += 0.18;
         this.group.add(square);
       }
     }
   }
 
-  #buildOverpasses() {
-    const concrete = new THREE.MeshStandardMaterial({ color: 0x777a78, roughness: 0.84, flatShading: true });
-    const shadow = new THREE.MeshStandardMaterial({ color: 0x1b2025, roughness: 0.92 });
+  #buildMountains() {
+    const rockMaterials = [
+      new THREE.MeshStandardMaterial({ color: 0x65706c, roughness: 1, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x7a7d73, roughness: 1, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x4c5857, roughness: 1, flatShading: true }),
+    ];
+    const snowMaterial = new THREE.MeshStandardMaterial({ color: 0xdfe7e6, roughness: 0.92, flatShading: true });
 
-    [0.18, 0.38, 0.66, 0.83].forEach((t, index) => {
-      const heading = this.#getHeadingAt(t) + Math.PI / 2;
+    for (let i = 0; i < 20; i += 1) {
+      const angle = (i / 20) * Math.PI * 2;
+      const radius = 230 + (i % 4) * 28;
+      const x = Math.sin(angle) * radius - 36;
+      const z = Math.cos(angle) * radius - 12;
+      const height = 66 + (i % 5) * 18;
+      const mountain = new THREE.Mesh(
+        new THREE.ConeGeometry(42 + (i % 3) * 12, height, 6),
+        rockMaterials[i % rockMaterials.length],
+      );
+      mountain.position.set(x, height * 0.34 - 16, z);
+      mountain.scale.z = 0.72;
+      mountain.rotation.y = angle * 0.7;
+      mountain.castShadow = true;
+      this.group.add(mountain);
+
+      const snow = new THREE.Mesh(new THREE.ConeGeometry(15 + (i % 3) * 4, height * 0.22, 6), snowMaterial);
+      snow.position.set(x, height * 0.72 - 10, z);
+      snow.scale.z = 0.72;
+      snow.rotation.y = mountain.rotation.y;
+      this.group.add(snow);
+    }
+  }
+
+  #buildTunnels() {
+    const tunnelMaterial = new THREE.MeshStandardMaterial({ color: 0x3c3b37, roughness: 0.92, flatShading: true });
+    const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x11151a, roughness: 0.95 });
+
+    [0.21, 0.71].forEach((t, index) => {
       const point = this.getPointOnCenterLine(t);
-      const bridge = new THREE.Group();
+      const heading = this.#getHeadingAt(t);
+      const portal = new THREE.Group();
 
-      const deck = new THREE.Mesh(new THREE.BoxGeometry(72, 3.2, 16), concrete);
-      deck.position.set(point.x, 10.6, point.z);
-      deck.rotation.y = heading;
-      deck.castShadow = true;
-      deck.receiveShadow = true;
-      bridge.add(deck);
+      const arch = new THREE.Mesh(new THREE.BoxGeometry(32, 22, 12), tunnelMaterial);
+      arch.position.copy(point);
+      arch.position.y += 10;
+      arch.rotation.y = heading;
+      arch.castShadow = true;
+      portal.add(arch);
 
-      const shade = new THREE.Mesh(new THREE.BoxGeometry(62, 0.08, 14), shadow);
-      shade.position.set(point.x, 0.24, point.z);
-      shade.rotation.y = heading;
-      bridge.add(shade);
+      const opening = new THREE.Mesh(new THREE.BoxGeometry(20, 15, 12.4), darkMaterial);
+      opening.position.copy(point);
+      opening.position.y += 7.5;
+      opening.rotation.y = heading;
+      portal.add(opening);
 
-      const side = new THREE.Vector3(Math.cos(heading), 0, -Math.sin(heading));
-      for (const offset of [-30, 30]) {
-        const support = new THREE.Mesh(new THREE.BoxGeometry(3.6, 10, 3.6), concrete);
-        support.position.copy(point).addScaledVector(side, offset);
-        support.position.y = 5;
-        support.castShadow = true;
-        bridge.add(support);
-        this.cameraCollisionObjects.push(support);
-      }
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(26, 24, 6), tunnelMaterial);
+      roof.position.copy(point);
+      roof.position.y += 20;
+      roof.rotation.y = heading;
+      roof.scale.z = 0.45;
+      roof.castShadow = true;
+      portal.add(roof);
 
-      bridge.name = `Overpass ${index + 1}`;
-      this.group.add(bridge);
-      this.cameraCollisionObjects.push(deck);
+      portal.name = `Tunnel ${index + 1}`;
+      this.group.add(portal);
+      this.cameraCollisionObjects.push(arch);
     });
   }
 
-  #buildSigns() {
-    const blue = new THREE.MeshStandardMaterial({ color: 0x214e8a, roughness: 0.62 });
-    const green = new THREE.MeshStandardMaterial({ color: 0x1e6b4a, roughness: 0.62 });
-    const metal = new THREE.MeshStandardMaterial({ color: 0xb8bdba, roughness: 0.55, metalness: 0.2 });
+  #buildCliffsAndOverlooks() {
+    const cliffMaterial = new THREE.MeshStandardMaterial({
+      color: 0x595a51,
+      roughness: 1,
+      flatShading: true,
+    });
+    const overlookMaterial = new THREE.MeshStandardMaterial({ color: 0x8c8779, roughness: 0.86 });
 
-    [
-      [0.1, -26, "A7"],
-      [0.24, 27, "KOLN"],
-      [0.47, -27, "180"],
-      [0.57, 27, "A9"],
-      [0.76, -27, "AUSFAHRT"],
-      [0.92, 27, "SPRINT"],
-    ].forEach(([t, offset, label], index) => {
-      const material = index % 2 === 0 ? blue : green;
-      const point = this.#offsetPoint(t, offset);
-      const sign = new THREE.Group();
-      const heading = this.#getHeadingAt(t);
+    for (let i = 0; i < 34; i += 1) {
+      const t = i / 34;
+      const side = Math.sin(t * Math.PI * 6) > 0 ? 1 : -1;
+      const cliff = this.#orientedBox(t, side * 25, 18 + (i % 3) * 5, 24 + (i % 5) * 7, 16, cliffMaterial);
+      cliff.position.y -= 9;
+      cliff.rotation.y += (i % 3) * 0.2;
+      cliff.castShadow = true;
+      cliff.receiveShadow = true;
+      this.group.add(cliff);
+      this.cameraCollisionObjects.push(cliff);
+    }
 
-      const post = new THREE.Mesh(new THREE.BoxGeometry(1.2, 8, 1.2), metal);
-      post.position.set(point.x, 4, point.z);
-      post.castShadow = true;
-      sign.add(post);
+    [0.34, 0.56, 0.86].forEach((t, index) => {
+      const side = index % 2 ? -1 : 1;
+      const deck = this.#orientedBox(t, side * 21, 24, 1.2, 12, overlookMaterial);
+      deck.position.y += 0.2;
+      deck.castShadow = true;
+      deck.receiveShadow = true;
+      this.group.add(deck);
 
-      const board = new THREE.Mesh(new THREE.BoxGeometry(12, 5.4, 0.55), material);
-      board.position.set(point.x, 9.2, point.z);
-      board.rotation.y = heading + Math.PI / 2;
-      board.castShadow = true;
-      sign.add(board);
+      const rail = this.#orientedBox(t, side * 28, 24, 2, 1.2, overlookMaterial);
+      rail.position.y += 1.4;
+      rail.castShadow = true;
+      this.group.add(rail);
+    });
+  }
 
-      const text = this.#makeSignSprite(label);
-      text.position.set(point.x, 9.35, point.z);
-      text.rotation.y = board.rotation.y;
-      sign.add(text);
+  #buildAlpineScenery() {
+    const trunk = new THREE.MeshStandardMaterial({ color: 0x5a3821, roughness: 0.9 });
+    const leaves = new THREE.MeshStandardMaterial({ color: 0x263f32, roughness: 0.96, flatShading: true });
+    const signMaterial = new THREE.MeshStandardMaterial({ color: 0xb84b32, roughness: 0.7 });
 
+    for (let i = 0; i < 80; i += 1) {
+      const t = i / 80;
+      const side = i % 2 ? -1 : 1;
+      const point = this.#offsetPoint(t, side * (34 + (i % 5) * 8));
+      this.#addPine(point.x, point.z, trunk, leaves);
+    }
+
+    [0.1, 0.3, 0.48, 0.62, 0.82].forEach((t) => {
+      const sign = this.#orientedBox(t, this.roadWidth * 0.5 + 3.5, 5, 3.2, 0.5, signMaterial);
+      sign.position.y += 2.8;
+      sign.rotation.y += Math.PI / 2;
+      sign.castShadow = true;
       this.group.add(sign);
     });
   }
 
-  #buildSpeedScenery() {
-    const soundWallMaterial = new THREE.MeshStandardMaterial({
-      color: 0x61717c,
-      roughness: 0.9,
-      flatShading: true,
-    });
-    const lampMaterial = new THREE.MeshStandardMaterial({ color: 0x2f363c, roughness: 0.68, metalness: 0.25 });
-    const blockMaterial = new THREE.MeshStandardMaterial({ color: 0x9b9f9b, roughness: 0.86, flatShading: true });
+  #addPine(x, z, trunkMaterial, leafMaterial) {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.7, 4, 5), trunkMaterial);
+    trunk.position.set(x, -1, z);
+    trunk.castShadow = true;
+    this.group.add(trunk);
 
-    for (let i = 0; i < 46; i += 1) {
-      const t = i / 46;
-      const heading = this.#getHeadingAt(t);
-
-      for (const side of [-1, 1]) {
-        if (i % 2 === 0 && i > 3 && i < 43) {
-          const wall = this.#orientedBox(t, side * 34, 14, 7, 8, soundWallMaterial);
-          wall.position.y = 3.5;
-          wall.rotation.y = heading;
-          wall.castShadow = true;
-          this.group.add(wall);
-          this.cameraCollisionObjects.push(wall);
-        }
-
-        if (i % 5 === 0) {
-          const lamp = this.#orientedBox(t, side * 25, 1, 13, 1, lampMaterial);
-          lamp.position.y = 6.5;
-          lamp.rotation.y = heading;
-          lamp.castShadow = true;
-          this.group.add(lamp);
-        }
-      }
-    }
-
-    for (let i = 0; i < 22; i += 1) {
-      const t = i / 22;
-      const block = this.#orientedBox(t, i % 2 ? 58 : -58, 18 + (i % 3) * 8, 8, 16, blockMaterial);
-      block.position.y = 4;
-      block.rotation.y += (i % 4) * 0.28;
-      block.castShadow = true;
-      block.receiveShadow = true;
-      this.group.add(block);
-    }
+    const crown = new THREE.Mesh(new THREE.ConeGeometry(4.4, 9.5, 6), leafMaterial);
+    crown.position.set(x, 5, z);
+    crown.castShadow = true;
+    this.group.add(crown);
   }
 
   #buildCheckpointGates() {
-    const gateMaterial = new THREE.MeshStandardMaterial({ color: 0xd4e2ef, roughness: 0.55 });
+    const gateMaterial = new THREE.MeshStandardMaterial({ color: 0xcfc7a0, roughness: 0.68 });
 
     this.checkpoints.forEach((checkpoint, index) => {
       if (index === 0) return;
 
-      const heading = checkpoint.heading + Math.PI / 2;
-      const gate = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 8, 1.2, 1.2), gateMaterial);
-      gate.position.copy(checkpoint.position);
-      gate.position.y = 11;
-      gate.rotation.y = heading;
-      gate.castShadow = true;
+      const gate = new THREE.Group();
+      const side = new THREE.Vector3(Math.cos(checkpoint.heading), 0, -Math.sin(checkpoint.heading));
+
+      for (const direction of [-1, 1]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(1, 6.8, 1), gateMaterial);
+        post.position.copy(checkpoint.position).addScaledVector(side, direction * (this.roadWidth * 0.5 + 1.6));
+        post.position.y += 3.4;
+        post.castShadow = true;
+        gate.add(post);
+      }
+
+      const banner = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 4, 1, 0.8), gateMaterial);
+      banner.position.copy(checkpoint.position);
+      banner.position.y += 7.1;
+      banner.rotation.y = checkpoint.heading + Math.PI / 2;
+      banner.castShadow = true;
+      gate.add(banner);
       gate.name = checkpoint.name;
       this.group.add(gate);
     });
@@ -398,7 +440,7 @@ export class Track {
   #orientedBox(t, lateralOffset, width, height, depth, material) {
     const box = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
     box.position.copy(this.#offsetPoint(t, lateralOffset));
-    box.position.y = height * 0.5 + 0.12;
+    box.position.y += height * 0.5;
     box.rotation.y = this.#getHeadingAt(t);
     return box;
   }
@@ -422,6 +464,7 @@ export class Track {
 
     for (const point of this.centerLinePoints) {
       const distance = this.#flatDistance(position, point);
+
       if (distance < nearestDistance) {
         nearest = point;
         nearestDistance = distance;
@@ -441,29 +484,5 @@ export class Track {
     const dx = a.x - b.x;
     const dz = a.z - b.z;
     return Math.sqrt(dx * dx + dz * dz);
-  }
-
-  #makeSignSprite(label) {
-    const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 96;
-    const context = canvas.getContext("2d");
-    context.fillStyle = "#ffffff";
-    context.font = "700 42px Arial";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(label, 128, 48);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    const sprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        depthWrite: false,
-      }),
-    );
-    sprite.scale.set(8, 3, 1);
-    return sprite;
   }
 }
