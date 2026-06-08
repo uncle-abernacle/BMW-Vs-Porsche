@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96" role="img" aria-label="Cayman-inspired sports car preview">
+  <rect width="160" height="96" rx="8" fill="#071019"/>
+  <ellipse cx="80" cy="73" rx="59" ry="10" fill="#000" opacity=".45"/>
+  <path d="M20 63 41 43h66l27 17 8 15H14Z" fill="#f2a51e" stroke="#ffe4a5" stroke-width="2"/>
+  <path d="M58 42h45L93 26H69Z" fill="#0b1a25" stroke="#ffe1a0" stroke-width="2"/>
+  <path d="M41 56h80" stroke="#1a1a1a" stroke-width="7"/>
+  <circle cx="44" cy="75" r="11" fill="#060606"/>
+  <circle cx="118" cy="75" r="11" fill="#060606"/>
+  <circle cx="44" cy="75" r="5" fill="#cfd7df"/>
+  <circle cx="118" cy="75" r="5" fill="#cfd7df"/>
+</svg>

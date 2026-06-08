@@ -531,39 +531,12 @@ body {
   overflow: hidden;
 }
 
-.vehicle-card__thumbnail svg {
+.vehicle-card__thumbnail img {
+  display: block;
   width: 94px;
   height: 56px;
+  object-fit: contain;
   transform: skewX(4deg);
-}
-
-.vehicle-thumb__shadow {
-  fill: rgba(0, 0, 0, 0.46);
-}
-
-.vehicle-thumb__body {
-  fill: var(--vehicle-color);
-  stroke: rgba(255, 255, 255, 0.52);
-  stroke-width: 1;
-}
-
-.vehicle-thumb__glass {
-  fill: #0c1720;
-  stroke: rgba(216, 238, 255, 0.58);
-  stroke-width: 1;
-}
-
-.vehicle-thumb__stripe {
-  fill: var(--stripe-color);
-  opacity: 0.95;
-}
-
-.vehicle-thumb__tire {
-  fill: #070707;
-}
-
-.vehicle-thumb__rim {
-  fill: #cfd7df;
 }
 
 .mode-list {

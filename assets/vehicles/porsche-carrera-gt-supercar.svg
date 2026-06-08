@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96" role="img" aria-label="Carrera GT-inspired supercar preview">
+  <rect width="160" height="96" rx="8" fill="#071019"/>
+  <ellipse cx="80" cy="73" rx="66" ry="10" fill="#000" opacity=".45"/>
+  <path d="M13 64 39 41h72l34 22 8 12H7Z" fill="#c8c9c7" stroke="#ffffff" stroke-width="2"/>
+  <path d="M64 40h45L97 23H74Z" fill="#0b1a25" stroke="#d8eeff" stroke-width="2"/>
+  <path d="M38 56h92" stroke="#831f23" stroke-width="7"/>
+  <circle cx="42" cy="75" r="11" fill="#060606"/>
+  <circle cx="124" cy="75" r="11" fill="#060606"/>
+  <circle cx="42" cy="75" r="5" fill="#cfd7df"/>
+  <circle cx="124" cy="75" r="5" fill="#cfd7df"/>
+</svg>

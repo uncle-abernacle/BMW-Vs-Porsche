@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96" role="img" aria-label="M5-inspired sedan preview">
+  <rect width="160" height="96" rx="8" fill="#071019"/>
+  <ellipse cx="80" cy="73" rx="66" ry="10" fill="#000" opacity=".45"/>
+  <path d="M18 61 35 43h82l27 18 7 14H11Z" fill="#2d343c" stroke="#d8eeff" stroke-width="2"/>
+  <path d="M50 42h66l-15-17H64Z" fill="#0b1a25" stroke="#b6d8ff" stroke-width="2"/>
+  <path d="M36 56h92" stroke="#b6d8ff" stroke-width="6"/>
+  <circle cx="43" cy="75" r="11" fill="#060606"/>
+  <circle cx="124" cy="75" r="11" fill="#060606"/>
+  <circle cx="43" cy="75" r="5" fill="#cfd7df"/>
+  <circle cx="124" cy="75" r="5" fill="#cfd7df"/>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96" role="img" aria-label="911-inspired sports car preview">
+  <rect width="160" height="96" rx="8" fill="#071019"/>
+  <ellipse cx="80" cy="73" rx="60" ry="10" fill="#000" opacity=".45"/>
+  <path d="M18 63 39 42h68l28 18 9 15H13Z" fill="#d82828" stroke="#ffd6d6" stroke-width="2"/>
+  <path d="M60 41h43L92 25H70Z" fill="#0b1a25" stroke="#ffd1d1" stroke-width="2"/>
+  <path d="M40 56h83" stroke="#141414" stroke-width="7"/>
+  <circle cx="43" cy="75" r="11" fill="#060606"/>
+  <circle cx="119" cy="75" r="11" fill="#060606"/>
+  <circle cx="43" cy="75" r="5" fill="#cfd7df"/>
+  <circle cx="119" cy="75" r="5" fill="#cfd7df"/>
+</svg>

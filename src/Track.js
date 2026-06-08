@@ -197,31 +197,75 @@ export class Track {
   #buildRoad() {
     const road = new THREE.Mesh(
       this.#createRoadGeometry(this.roadWidth),
-      new THREE.MeshStandardMaterial({
-        color: 0x34363b,
-        emissive: 0x07080a,
-        roughness: 0.78,
-        flatShading: true,
+      new THREE.MeshBasicMaterial({
+        color: 0x2d3338,
         side: THREE.DoubleSide,
+        fog: false,
       }),
     );
     road.position.y = this.roadSurfaceOffset;
+    road.renderOrder = 4;
     road.receiveShadow = true;
     this.group.add(road);
 
     const shoulder = new THREE.Mesh(
       this.#createRoadGeometry(this.roadWidth + 4),
-      new THREE.MeshStandardMaterial({
-        color: 0x7c735d,
-        emissive: 0x151207,
-        roughness: 0.94,
-        flatShading: true,
+      new THREE.MeshBasicMaterial({
+        color: 0xbd9560,
         side: THREE.DoubleSide,
+        fog: false,
       }),
     );
     shoulder.position.y = 0.02;
+    shoulder.renderOrder = 3;
     shoulder.receiveShadow = true;
     this.group.add(shoulder);
+
+    const edgeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf3d15c,
+      side: THREE.DoubleSide,
+      fog: false,
+    });
+
+    for (const side of [-1, 1]) {
+      const edge = new THREE.Mesh(this.#createRoadEdgeGeometry(side), edgeMaterial);
+      edge.renderOrder = 5;
+      this.group.add(edge);
+    }
+  }
+
+  #createRoadEdgeGeometry(sideSign) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+    const edgeWidth = 0.42;
+    const edgeOffset = this.roadWidth * 0.5 - edgeWidth * 0.5;
+
+    for (let i = 0; i <= this.samples; i += 1) {
+      const t = i / this.samples;
+      const point = this.getPointOnCenterLine(t);
+      const next = this.getPointOnCenterLine(t + 1 / this.samples);
+      const tangent = next.clone().sub(point).normalize();
+      const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(sideSign);
+      const inner = point.clone().addScaledVector(side, edgeOffset - edgeWidth * 0.5);
+      const outer = point.clone().addScaledVector(side, edgeOffset + edgeWidth * 0.5);
+
+      inner.y += this.roadSurfaceOffset + 0.05;
+      outer.y += this.roadSurfaceOffset + 0.05;
+      vertices.push(inner.x, inner.y, inner.z, outer.x, outer.y, outer.z);
+      normals.push(0, 1, 0, 0, 1, 0);
+
+      if (i < this.samples) {
+        const base = i * 2;
+        indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+    geometry.setIndex(indices);
+    return geometry;
   }
 
   #createRoadGeometry(width) {
@@ -255,10 +299,9 @@ export class Track {
   }
 
   #buildRoadDetails() {
-    const lineMaterial = new THREE.MeshStandardMaterial({
+    const lineMaterial = new THREE.MeshBasicMaterial({
       color: 0xe9d874,
-      emissive: 0x2d2505,
-      roughness: 0.62,
+      fog: false,
     });
     const stoneMaterial = new THREE.MeshStandardMaterial({
       color: 0xa9a18b,
@@ -269,8 +312,9 @@ export class Track {
 
     for (let i = 0; i < 82; i += 1) {
       const t = i / 82;
-      const marker = this.#orientedBox(t, 0, 0.45, 0.04, 4.3, lineMaterial);
-      marker.position.y += 0.12;
+      const marker = this.#orientedBox(t, 0, 0.72, 0.06, 5.2, lineMaterial);
+      marker.position.y += 0.22;
+      marker.renderOrder = 6;
       this.group.add(marker);
     }
 

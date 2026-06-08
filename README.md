@@ -76,6 +76,8 @@ BMW VS PORSCHE/
 ├── .gitignore
 ├── .nojekyll
 ├── README.md
+├── assets/
+│   └── vehicles/
 ├── index.html
 ├── styles.css
 └── src/

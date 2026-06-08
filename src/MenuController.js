@@ -156,11 +156,9 @@ export class MenuController {
       button.className = "menu-card vehicle-card";
       button.type = "button";
       button.dataset.vehicleId = vehicle.id;
-      const bodyColor = `#${vehicle.bodyColor.toString(16).padStart(6, "0")}`;
-      const stripeColor = `#${vehicle.stripeColor.toString(16).padStart(6, "0")}`;
       button.innerHTML = `
-        <span class="vehicle-card__thumbnail" style="--vehicle-color: ${bodyColor}; --stripe-color: ${stripeColor}">
-          ${this.#createVehicleThumbnail(vehicle)}
+        <span class="vehicle-card__thumbnail">
+          <img src="${vehicle.image}" alt="${vehicle.name} preview" loading="eager" />
         </span>
         <strong>${vehicle.name}</strong>
         <span>${vehicle.className}</span>
@@ -277,27 +275,6 @@ export class MenuController {
     this.previewCar.group.scale.setScalar(0.82);
     this.previewScene.add(this.previewCar.group);
     requestAnimationFrame(() => this.#resizePreview());
-  }
-
-  #createVehicleThumbnail(vehicle) {
-    const isSupercar = vehicle.className.toLowerCase().includes("supercar");
-    const isSedan = vehicle.className.toLowerCase().includes("sedan");
-    const roofWidth = isSedan ? 38 : 31;
-    const roofX = isSedan ? 29 : isSupercar ? 34 : 32;
-    const nose = isSupercar ? "80,28 91,38" : "78,27 90,38";
-
-    return `
-      <svg viewBox="0 0 96 58" aria-hidden="true" focusable="false">
-        <polygon class="vehicle-thumb__shadow" points="13,42 77,42 86,47 8,47"></polygon>
-        <polygon class="vehicle-thumb__body" points="12,34 22,25 ${nose} 83,41 17,41"></polygon>
-        <polygon class="vehicle-thumb__glass" points="${roofX},24 ${roofX + roofWidth},24 ${roofX + roofWidth - 8},16 ${roofX + 8},16"></polygon>
-        <rect class="vehicle-thumb__stripe" x="21" y="31" width="54" height="4"></rect>
-        <circle class="vehicle-thumb__tire" cx="28" cy="41" r="6"></circle>
-        <circle class="vehicle-thumb__tire" cx="70" cy="41" r="6"></circle>
-        <circle class="vehicle-thumb__rim" cx="28" cy="41" r="2.5"></circle>
-        <circle class="vehicle-thumb__rim" cx="70" cy="41" r="2.5"></circle>
-      </svg>
-    `;
   }
 
   #animatePreview() {
