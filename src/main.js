@@ -83,6 +83,9 @@ const pauseSettings = document.querySelector("#pause-settings");
 const pauseTrackSelect = document.querySelector("#pause-track-select");
 
 let elapsedRaceTime = 0;
+let lapStartedAt = 0;
+let bestLapTime = null;
+let lastLapTime = null;
 let menuCameraTime = 0;
 let lapState = null;
 let activeMode = "quick-race";
@@ -170,6 +173,7 @@ function resetRace() {
   player.reset(track.startPosition.clone(), track.startRotation);
   resetAiRacers();
   elapsedRaceTime = 0;
+  resetLapTiming();
   lapState = track.createLapState(activeMode === "practice" ? 0 : track.totalLaps);
   raceFinished = false;
   raceCountdownRemaining = activeMode === "practice" ? 0 : 2.1;
@@ -267,7 +271,16 @@ function resetAiRacers() {
 
 function updateRaceProgress(deltaTime) {
   elapsedRaceTime += deltaTime;
+  const previousLap = lapState.currentLap;
+  const wasFinished = lapState.finished;
   track.updateLapProgress(player.group.position, lapState);
+  const completedLap = lapState.currentLap > previousLap || (!wasFinished && lapState.finished);
+
+  if (completedLap) {
+    lastLapTime = Math.max(0, elapsedRaceTime - lapStartedAt);
+    bestLapTime = Number.isFinite(bestLapTime) ? Math.min(bestLapTime, lastLapTime) : lastLapTime;
+    lapStartedAt = elapsedRaceTime;
+  }
 
   if (activeMode !== "practice" && lapState.finished && !raceFinished) {
     finishRace();
@@ -321,6 +334,10 @@ function animate() {
       lap: lapState.currentLap,
       totalLaps: lapState.totalLaps,
       time: 0,
+      lapTime: 0,
+      lastLapTime,
+      bestLapTime,
+      lapDelta: null,
       rpm: calculateRpm(player),
       position: calculateRacePosition(),
       totalRacers: 1 + aiRacers.length,
@@ -348,6 +365,10 @@ function animate() {
     lap: lapState.currentLap,
     totalLaps: lapState.totalLaps,
     time: elapsedRaceTime,
+    lapTime: getCurrentLapTime(),
+    lastLapTime,
+    bestLapTime,
+    lapDelta: getLapDelta(),
     rpm: calculateRpm(player),
     position: racePosition,
     totalRacers: 1 + aiRacers.length,
@@ -467,6 +488,24 @@ function renderStandings(standings) {
       `,
     )
     .join("");
+}
+
+function resetLapTiming() {
+  lapStartedAt = 0;
+  bestLapTime = null;
+  lastLapTime = null;
+}
+
+function getCurrentLapTime() {
+  return Math.max(0, elapsedRaceTime - lapStartedAt);
+}
+
+function getLapDelta() {
+  if (!Number.isFinite(bestLapTime)) {
+    return null;
+  }
+
+  return getCurrentLapTime() - bestLapTime;
 }
 
 function calculateRacePosition() {

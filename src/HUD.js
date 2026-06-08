@@ -10,6 +10,10 @@ export class HUD {
     this.positionReadout = document.querySelector("#position-readout");
     this.positionTotalReadout = document.querySelector("#position-total-readout");
     this.timerReadout = document.querySelector("#timer-readout");
+    this.lapTimeReadout = document.querySelector("#lap-time-readout");
+    this.lastLapReadout = document.querySelector("#last-lap-readout");
+    this.bestLapReadout = document.querySelector("#best-lap-readout");
+    this.lapDeltaReadout = document.querySelector("#lap-delta-readout");
     this.checkpointReadout = document.querySelector("#checkpoint-readout");
     this.speedNeedle = document.querySelector("#speed-needle");
     this.tachNeedle = document.querySelector("#tach-needle");
@@ -23,6 +27,10 @@ export class HUD {
     lap,
     totalLaps,
     time,
+    lapTime = 0,
+    lastLapTime = null,
+    bestLapTime = null,
+    lapDelta = null,
     rpm,
     position = 1,
     totalRacers = 6,
@@ -39,6 +47,12 @@ export class HUD {
     this.positionReadout.textContent = String(position);
     this.positionTotalReadout.textContent = `/ ${totalRacers}`;
     this.timerReadout.textContent = this.#formatTime(time);
+    this.lapTimeReadout.textContent = this.#formatTime(lapTime);
+    this.lastLapReadout.textContent = Number.isFinite(lastLapTime) ? this.#formatTime(lastLapTime) : "--:--.---";
+    this.bestLapReadout.textContent = Number.isFinite(bestLapTime) ? this.#formatTime(bestLapTime) : "--:--.---";
+    this.lapDeltaReadout.textContent = this.#formatDelta(lapDelta);
+    this.lapDeltaReadout.classList.toggle("is-faster", Number.isFinite(lapDelta) && lapDelta < 0);
+    this.lapDeltaReadout.classList.toggle("is-slower", Number.isFinite(lapDelta) && lapDelta > 0);
     this.checkpointReadout.textContent = checkpointName;
 
     this.#setNeedle(this.speedNeedle, speed, 0, 180);
@@ -149,5 +163,18 @@ export class HUD {
     return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(
       milliseconds,
     ).padStart(3, "0")}`;
+  }
+
+  #formatDelta(deltaSeconds) {
+    if (!Number.isFinite(deltaSeconds)) {
+      return "--.---";
+    }
+
+    const sign = deltaSeconds > 0 ? "+" : deltaSeconds < 0 ? "-" : "";
+    const absoluteDelta = Math.abs(deltaSeconds);
+    const seconds = Math.floor(absoluteDelta);
+    const milliseconds = Math.floor((absoluteDelta % 1) * 1000);
+
+    return `${sign}${String(seconds).padStart(2, "0")}.${String(milliseconds).padStart(3, "0")}`;
   }
 }

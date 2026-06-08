@@ -88,7 +88,7 @@ body {
 
 .hud__race {
   display: grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(7, auto);
   gap: clamp(14px, 3vw, 30px);
   min-height: 58px;
   align-items: center;
@@ -108,7 +108,7 @@ body {
 
 .hud__race strong {
   color: var(--accent);
-  font-size: clamp(24px, 3vw, 38px);
+  font-size: clamp(22px, 2.35vw, 36px);
   line-height: 0.9;
 }
 
@@ -116,6 +116,14 @@ body {
   color: var(--text);
   font-size: 18px;
   font-weight: 900;
+}
+
+#lap-delta-readout.is-faster {
+  color: #73d2ff;
+}
+
+#lap-delta-readout.is-slower {
+  color: #f05a35;
 }
 
 .hud__gauge {
@@ -842,6 +850,7 @@ body {
   }
 
   .hud__race {
+    grid-template-columns: repeat(3, auto);
     gap: 10px;
     padding: 8px;
   }
