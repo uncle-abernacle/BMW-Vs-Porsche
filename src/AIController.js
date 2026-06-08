@@ -163,7 +163,7 @@ export class AIController {
   #getHeadingAt(progress) {
     const point = this.track.getPointOnCenterLine(progress);
     const next = this.track.getPointOnCenterLine(progress + 0.004);
-    return Math.atan2(next.x - point.x, next.z - point.z);
+    return Math.atan2(point.x - next.x, point.z - next.z);
   }
 
   #getForwardVector() {

@@ -26,6 +26,11 @@ export class InputManager {
     this.resetPressed = false;
   }
 
+  clear() {
+    this.keys.clear();
+    this.resetPressed = false;
+  }
+
   #handleKeyDown(event) {
     if (this.#isGameKey(event.code)) {
       event.preventDefault();

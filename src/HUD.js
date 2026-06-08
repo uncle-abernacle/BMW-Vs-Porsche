@@ -35,7 +35,7 @@ export class HUD {
     this.rpmReadout.textContent = (rpm / 1000).toFixed(1);
     this.gearReadout.textContent = gear;
     this.lapCurrentReadout.textContent = String(lap);
-    this.lapTotalReadout.textContent = `/ ${totalLaps}`;
+    this.lapTotalReadout.textContent = totalLaps > 0 ? `/ ${totalLaps}` : "/ Practice";
     this.positionReadout.textContent = String(position);
     this.positionTotalReadout.textContent = `/ ${totalRacers}`;
     this.timerReadout.textContent = this.#formatTime(time);

@@ -1,42 +1,106 @@
 import * as THREE from "three";
 
-// Track 3: Alpine Pass. The road is a narrow low-poly mountain loop with
-// hairpins, tunnels, cliff edges, scenic overlooks, fog-friendly silhouettes,
-// and ordered checkpoint/lap logic.
+export const TRACK_OPTIONS = [
+  {
+    id: "german-countryside",
+    name: "German Countryside Circuit",
+    roadWidth: 18,
+    samples: 520,
+    scenery: "countryside",
+    backgroundColor: 0xbfe3ff,
+    skyColor: 0xcdeeff,
+    fogColor: 0xc9dfd7,
+    fogNear: 95,
+    fogFar: 560,
+    controlPoints: [
+      [-120, 0, 138],
+      [70, 0, 126],
+      [190, 0, 38],
+      [174, 0, -86],
+      [72, 0, -142],
+      [-98, 0, -132],
+      [-190, 0, -38],
+      [-176, 0, 88],
+    ],
+  },
+  {
+    id: "autobahn-sprint",
+    name: "Autobahn Sprint",
+    roadWidth: 26,
+    samples: 540,
+    scenery: "autobahn",
+    backgroundColor: 0xb8dcff,
+    skyColor: 0xc9eaff,
+    fogColor: 0xbfd7e6,
+    fogNear: 130,
+    fogFar: 650,
+    controlPoints: [
+      [-245, 0, 96],
+      [-84, 0, 116],
+      [182, 0, 112],
+      [282, 0, 28],
+      [240, 0, -72],
+      [40, 0, -102],
+      [-190, 0, -88],
+      [-286, 0, 4],
+    ],
+  },
+  {
+    id: "alpine-pass",
+    name: "Alpine Pass",
+    roadWidth: 15,
+    samples: 540,
+    scenery: "alpine",
+    backgroundColor: 0xb9ddff,
+    skyColor: 0xc7e6ff,
+    fogColor: 0xc5d8df,
+    fogNear: 62,
+    fogFar: 345,
+    controlPoints: [
+      [-18, 0, 132],
+      [-12, 0, 42],
+      [70, 0, -38],
+      [28, 0, -118],
+      [-82, 0, -92],
+      [-142, 0, -10],
+      [-92, 0, 72],
+      [44, 0, 92],
+      [142, 0, 36],
+      [124, 0, -78],
+      [24, 0, -168],
+      [-126, 0, -154],
+      [-210, 0, -46],
+      [-164, 0, 104],
+      [-62, 0, 172],
+    ],
+  },
+];
+
+function getTrackDefinition(trackId = "alpine-pass") {
+  return TRACK_OPTIONS.find((track) => track.id === trackId) ?? TRACK_OPTIONS[2];
+}
+
+// Track builds low-poly arcade circuits from a small definition. It owns road
+// geometry, surface height, scenery placement, checkpoints, and lap logic.
 export class Track {
-  constructor() {
-    this.name = "Alpine Pass";
+  constructor(trackId = "alpine-pass") {
+    this.definition = getTrackDefinition(trackId);
+    this.id = this.definition.id;
+    this.name = this.definition.name;
     this.group = new THREE.Group();
     this.group.name = this.name;
     this.cameraCollisionObjects = [];
-    this.roadWidth = 15;
-    this.samples = 280;
+    this.roadWidth = this.definition.roadWidth;
+    this.samples = this.definition.samples;
     this.totalLaps = 3;
-    this.checkpointRadius = 22;
+    this.checkpointRadius = 36;
     this.roadSurfaceOffset = 0.08;
-    this.backgroundColor = 0xb9ddff;
-    this.skyColor = 0xc7e6ff;
-    this.fogColor = 0xc5d8df;
-    this.fogNear = 62;
-    this.fogFar = 345;
-
-    this.controlPoints = [
-      new THREE.Vector3(-18, 0, 132),
-      new THREE.Vector3(-12, 0, 42),
-      new THREE.Vector3(70, 0, -38),
-      new THREE.Vector3(28, 0, -118),
-      new THREE.Vector3(-82, 0, -92),
-      new THREE.Vector3(-142, 0, -10),
-      new THREE.Vector3(-92, 0, 72),
-      new THREE.Vector3(44, 0, 92),
-      new THREE.Vector3(142, 0, 36),
-      new THREE.Vector3(124, 0, -78),
-      new THREE.Vector3(24, 0, -168),
-      new THREE.Vector3(-126, 0, -154),
-      new THREE.Vector3(-210, 0, -46),
-      new THREE.Vector3(-164, 0, 104),
-      new THREE.Vector3(-62, 0, 172),
-    ];
+    this.backgroundColor = this.definition.backgroundColor;
+    this.skyColor = this.definition.skyColor;
+    this.fogColor = this.definition.fogColor;
+    this.fogNear = this.definition.fogNear;
+    this.fogFar = this.definition.fogFar;
+    this.controlPoints = this.definition.controlPoints.map(([x, y, z]) => new THREE.Vector3(x, y, z));
 
     this.curve = new THREE.CatmullRomCurve3(this.controlPoints, true, "catmullrom", 0.7);
     this.centerLinePoints = this.#sampleCenterLine();
@@ -67,6 +131,8 @@ export class Track {
       totalLaps,
       nextCheckpoint: 1,
       checkpointsPassed: 0,
+      passedCheckpoints: new Set(),
+      lastProgress: 0,
       finished: false,
       lastCheckpointName: "Start",
     };
@@ -77,27 +143,40 @@ export class Track {
       return lapState;
     }
 
+    const progress = this.getProgressAtPosition(position);
     const checkpoint = this.checkpoints[lapState.nextCheckpoint];
 
-    if (this.#flatDistance(position, checkpoint.position) > checkpoint.radius) {
-      return lapState;
+    if (checkpoint && this.#flatDistance(position, checkpoint.position) <= checkpoint.radius) {
+      lapState.lastCheckpointName = checkpoint.name;
+      lapState.nextCheckpoint = (lapState.nextCheckpoint + 1) % this.checkpoints.length;
+
+      if (checkpoint.id > 0) {
+        lapState.passedCheckpoints?.add(checkpoint.id);
+        lapState.checkpointsPassed = lapState.passedCheckpoints?.size ?? lapState.checkpointsPassed + 1;
+      }
     }
 
-    lapState.lastCheckpointName = checkpoint.name;
-    lapState.nextCheckpoint = (lapState.nextCheckpoint + 1) % this.checkpoints.length;
-    lapState.checkpointsPassed += 1;
+    const crossedStartLine = lapState.lastProgress > 0.82 && progress < 0.18;
+    const clearedLapGates = (lapState.passedCheckpoints?.size ?? 0) >= this.checkpoints.length - 1;
 
-    if (lapState.nextCheckpoint === 1) {
+    if (crossedStartLine && clearedLapGates) {
       lapState.currentLap += 1;
-      lapState.finished = lapState.currentLap > lapState.totalLaps;
-      lapState.currentLap = Math.min(lapState.currentLap, lapState.totalLaps);
+      if (lapState.totalLaps > 0) {
+        lapState.finished = lapState.currentLap > lapState.totalLaps;
+        lapState.currentLap = Math.min(lapState.currentLap, lapState.totalLaps);
+      }
+      lapState.nextCheckpoint = 1;
+      lapState.checkpointsPassed = 0;
+      lapState.passedCheckpoints = new Set();
+      lapState.lastCheckpointName = "Start / Finish";
     }
 
+    lapState.lastProgress = progress;
     return lapState;
   }
 
   getSurfaceCorrection(position) {
-    const nearest = this.#nearestCenterLinePoint(position);
+    const nearest = this.#nearestTrackInfo(position).point;
     const offset = new THREE.Vector3(position.x - nearest.x, 0, position.z - nearest.z);
     const distanceFromRoad = offset.length() - this.roadWidth * 0.5;
 
@@ -115,26 +194,22 @@ export class Track {
   }
 
   getProgressAtPosition(position) {
-    let nearestIndex = 0;
-    let nearestDistance = Infinity;
-
-    for (let i = 0; i < this.centerLinePoints.length; i += 1) {
-      const distance = this.#flatDistance(position, this.centerLinePoints[i]);
-
-      if (distance < nearestDistance) {
-        nearestIndex = i;
-        nearestDistance = distance;
-      }
-    }
-
-    return nearestIndex / this.centerLinePoints.length;
+    return this.#nearestTrackInfo(position).t;
   }
 
   getRoadHeightAtPosition(position) {
-    return this.#nearestCenterLinePoint(position).y + this.roadSurfaceOffset;
+    return this.#heightAt(this.#nearestTrackInfo(position).t) + 0.12 + this.roadSurfaceOffset;
   }
 
   #heightAt(t) {
+    if (this.definition.scenery === "autobahn") {
+      return Math.sin(t * Math.PI * 2) * 2.2 + Math.cos(t * Math.PI * 4) * 1.2;
+    }
+
+    if (this.definition.scenery === "countryside") {
+      return Math.sin(t * Math.PI * 2) * 5 + Math.sin(t * Math.PI * 8 + 0.5) * 2.8;
+    }
+
     return (
       Math.sin(t * Math.PI * 2) * 10 +
       Math.sin(t * Math.PI * 6 + 0.8) * 5 +
@@ -159,7 +234,7 @@ export class Track {
       t,
       position: this.getPointOnCenterLine(t),
       heading: this.#getHeadingAt(t),
-      radius: index === 0 ? 26 : this.checkpointRadius,
+      radius: index === 0 ? 44 : this.checkpointRadius,
     }));
   }
 
@@ -199,7 +274,7 @@ export class Track {
       this.#createRoadGeometry(this.roadWidth),
       new THREE.MeshBasicMaterial({
         color: 0x2d3338,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
         fog: false,
       }),
     );
@@ -212,7 +287,7 @@ export class Track {
       this.#createRoadGeometry(this.roadWidth + 4),
       new THREE.MeshBasicMaterial({
         color: 0xbd9560,
-        side: THREE.DoubleSide,
+        side: THREE.FrontSide,
         fog: false,
       }),
     );
@@ -223,7 +298,7 @@ export class Track {
 
     const edgeMaterial = new THREE.MeshBasicMaterial({
       color: 0xf3d15c,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
       fog: false,
     });
 
@@ -231,6 +306,42 @@ export class Track {
       const edge = new THREE.Mesh(this.#createRoadEdgeGeometry(side), edgeMaterial);
       edge.renderOrder = 5;
       this.group.add(edge);
+    }
+
+    this.#buildBridgeSupports();
+  }
+
+  #buildBridgeSupports() {
+    const supportMaterial = new THREE.MeshStandardMaterial({
+      color: 0x6e6b60,
+      roughness: 0.9,
+      flatShading: true,
+    });
+
+    for (let i = 0; i < this.samples; i += 28) {
+      const t = i / this.samples;
+      const point = this.getPointOnCenterLine(t);
+      const roadY = this.getRoadHeightAtPosition(point);
+      const groundY = this.#terrainHeightAt(point.x, point.z);
+      const drop = roadY - groundY;
+
+      if (drop < 7) {
+        continue;
+      }
+
+      const next = this.getPointOnCenterLine(t + 0.004);
+      const tangent = next.sub(point).normalize();
+      const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
+
+      for (const sideSign of [-1, 1]) {
+        const supportHeight = Math.max(drop - 0.7, 1);
+        const support = new THREE.Mesh(new THREE.BoxGeometry(1.8, supportHeight, 1.8), supportMaterial);
+        support.position.copy(point).addScaledVector(side, sideSign * (this.roadWidth * 0.35));
+        support.position.y = groundY + supportHeight * 0.5;
+        support.castShadow = true;
+        support.receiveShadow = true;
+        this.group.add(support);
+      }
     }
   }
 
@@ -257,7 +368,7 @@ export class Track {
 
       if (i < this.samples) {
         const base = i * 2;
-        indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+        indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
       }
     }
 
@@ -287,7 +398,7 @@ export class Track {
 
       if (i < this.samples) {
         const base = i * 2;
-        indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+        indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
       }
     }
 
@@ -373,14 +484,15 @@ export class Track {
         new THREE.ConeGeometry(42 + (i % 3) * 12, height, 6),
         rockMaterials[i % rockMaterials.length],
       );
-      mountain.position.set(x, height * 0.34 - 16, z);
+      const groundY = this.#terrainHeightAt(x, z);
+      mountain.position.set(x, groundY + height * 0.34, z);
       mountain.scale.z = 0.72;
       mountain.rotation.y = angle * 0.7;
       mountain.castShadow = false;
       this.group.add(mountain);
 
       const snow = new THREE.Mesh(new THREE.ConeGeometry(15 + (i % 3) * 4, height * 0.22, 6), snowMaterial);
-      snow.position.set(x, height * 0.72 - 10, z);
+      snow.position.set(x, groundY + height * 0.72 + 6, z);
       snow.scale.z = 0.72;
       snow.rotation.y = mountain.rotation.y;
       this.group.add(snow);
@@ -481,12 +593,12 @@ export class Track {
     for (let i = 0; i < 80; i += 1) {
       const t = i / 80;
       const side = i % 2 ? -1 : 1;
-      const point = this.#offsetPoint(t, side * (34 + (i % 5) * 8));
+      const point = this.#offsetPoint(t, side * (44 + (i % 5) * 8));
       this.#addPine(point.x, point.z, trunk, leaves);
     }
 
     [0.1, 0.3, 0.48, 0.62, 0.82].forEach((t) => {
-      const sign = this.#orientedBox(t, this.roadWidth * 0.5 + 3.5, 5, 3.2, 0.5, signMaterial);
+      const sign = this.#orientedBox(t, this.roadWidth * 0.5 + 7.5, 5, 3.2, 0.5, signMaterial);
       sign.position.y += 2.8;
       sign.rotation.y += Math.PI / 2;
       sign.castShadow = true;
@@ -495,13 +607,14 @@ export class Track {
   }
 
   #addPine(x, z, trunkMaterial, leafMaterial) {
+    const groundY = this.#terrainHeightAt(x, z);
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.7, 4, 5), trunkMaterial);
-    trunk.position.set(x, -1, z);
+    trunk.position.set(x, groundY + 2, z);
     trunk.castShadow = false;
     this.group.add(trunk);
 
     const crown = new THREE.Mesh(new THREE.ConeGeometry(4.4, 9.5, 6), leafMaterial);
-    crown.position.set(x, 5, z);
+    crown.position.set(x, groundY + 8.6, z);
     crown.castShadow = false;
     this.group.add(crown);
   }
@@ -556,25 +669,57 @@ export class Track {
   }
 
   #nearestCenterLinePoint(position) {
-    let nearest = this.centerLinePoints[0];
+    return this.#nearestTrackInfo(position).point;
+  }
+
+  #nearestTrackInfo(position) {
+    let nearestPoint = this.centerLinePoints[0].clone();
+    let nearestT = 0;
     let nearestDistance = Infinity;
 
-    for (const point of this.centerLinePoints) {
-      const distance = this.#flatDistance(position, point);
+    for (let i = 0; i < this.centerLinePoints.length; i += 1) {
+      const a = this.centerLinePoints[i];
+      const b = this.centerLinePoints[(i + 1) % this.centerLinePoints.length];
+      const abX = b.x - a.x;
+      const abZ = b.z - a.z;
+      const apX = position.x - a.x;
+      const apZ = position.z - a.z;
+      const lengthSq = Math.max(abX * abX + abZ * abZ, 0.0001);
+      const segmentRatio = THREE.MathUtils.clamp((apX * abX + apZ * abZ) / lengthSq, 0, 1);
+      const candidateX = a.x + abX * segmentRatio;
+      const candidateZ = a.z + abZ * segmentRatio;
+      const dx = position.x - candidateX;
+      const dz = position.z - candidateZ;
+      const distanceSq = dx * dx + dz * dz;
 
-      if (distance < nearestDistance) {
-        nearest = point;
-        nearestDistance = distance;
+      if (distanceSq < nearestDistance) {
+        const t = (i + segmentRatio) / this.centerLinePoints.length;
+        nearestDistance = distanceSq;
+        nearestT = THREE.MathUtils.euclideanModulo(t, 1);
+        nearestPoint = new THREE.Vector3(candidateX, this.#heightAt(nearestT) + 0.12, candidateZ);
       }
     }
 
-    return nearest.clone();
+    return {
+      point: nearestPoint,
+      t: nearestT,
+    };
+  }
+
+  #terrainHeightAt(x, z) {
+    const localX = x + 38;
+    const localZ = z + 12;
+    const ridge =
+      Math.sin(localX * 0.018) * 16 +
+      Math.cos(localZ * 0.016) * 14 +
+      Math.sin((localX - localZ) * 0.012) * 9;
+    return ridge - 26;
   }
 
   #getHeadingAt(t) {
     const point = this.getPointOnCenterLine(t);
     const next = this.getPointOnCenterLine(t + 0.004);
-    return Math.atan2(next.x - point.x, next.z - point.z);
+    return Math.atan2(point.x - next.x, point.z - next.z);
   }
 
   #flatDistance(a, b) {

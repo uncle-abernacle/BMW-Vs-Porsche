@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96" role="img" aria-label="M2-inspired club coupe preview">
+  <rect width="160" height="96" rx="8" fill="#071019"/>
+  <ellipse cx="80" cy="73" rx="58" ry="10" fill="#000" opacity=".45"/>
+  <path d="M24 62 42 43h66l25 18 8 14H16Z" fill="#5aa7ff" stroke="#e0f4ff" stroke-width="2"/>
+  <path d="M58 42h44L91 26H70Z" fill="#0b1a25" stroke="#bde4ff" stroke-width="2"/>
+  <path d="M43 56h78" stroke="#11151c" stroke-width="7"/>
+  <circle cx="46" cy="75" r="11" fill="#060606"/>
+  <circle cx="116" cy="75" r="11" fill="#060606"/>
+  <circle cx="46" cy="75" r="5" fill="#cfd7df"/>
+  <circle cx="116" cy="75" r="5" fill="#cfd7df"/>
+</svg>

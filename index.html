@@ -97,7 +97,16 @@
               <span>05</span>
               <strong>Options</strong>
             </button>
+            <button class="mode-button" type="button" data-menu-action="practice">
+              <span>06</span>
+              <strong>Practice</strong>
+            </button>
           </nav>
+
+          <label class="track-select">
+            <span>Track</span>
+            <select id="track-select"></select>
+          </label>
 
           <div class="menu-hint">D-pad / arrows select | Enter confirm | Esc back</div>
         </div>
@@ -173,6 +182,23 @@
         </div>
       </section>
     </main>
+
+    <section id="pause-menu" class="pause-menu is-hidden" aria-live="polite">
+      <div class="pause-panel">
+        <span class="menu__eyebrow">Paused</span>
+        <h2>Race Menu</h2>
+        <label class="track-select track-select--pause">
+          <span>Track</span>
+          <select id="pause-track-select"></select>
+        </label>
+        <div class="pause-actions">
+          <button id="pause-resume" class="menu-button menu-button--primary" type="button">Resume</button>
+          <button id="pause-change-car" class="menu-button" type="button">Change Car</button>
+          <button id="pause-settings" class="menu-button" type="button">Settings</button>
+          <button id="pause-home" class="menu-button menu-button--ghost" type="button">Home</button>
+        </div>
+      </div>
+    </section>
 
     <section id="championship-overlay" class="championship-overlay is-hidden" aria-live="polite">
       <div class="championship-panel">

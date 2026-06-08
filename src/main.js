@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { Car } from "./Car.js";
-import { Track } from "./Track.js";
+import { Track, TRACK_OPTIONS } from "./Track.js";
 import { CameraController } from "./CameraController.js";
 import { InputManager } from "./InputManager.js";
 import { HUD } from "./HUD.js";
@@ -53,11 +53,8 @@ sun.shadow.camera.far = 420;
 scene.add(sun);
 scene.add(new THREE.HemisphereLight(0xd8edff, 0x5b6648, 1.7));
 
-const track = new Track();
-scene.add(track.group);
-scene.background = new THREE.Color(track.backgroundColor ?? 0x8fb7dc);
-scene.fog = new THREE.Fog(track.fogColor ?? 0x8fb7dc, track.fogNear ?? 120, track.fogFar ?? 620);
-buildAtmosphere(scene, track);
+let track = null;
+let atmosphere = null;
 
 let player = null;
 let cameraController = null;
@@ -69,8 +66,37 @@ const hud = new HUD();
 const audio = new AudioManager();
 const clock = new THREE.Clock();
 const championship = new ChampionshipManager();
-const menu = new MenuController({
-  onStart: ({ vehicle, mode }) => startRace(vehicle, mode),
+let menu = null;
+const championshipOverlay = document.querySelector("#championship-overlay");
+const championshipKicker = document.querySelector("#championship-kicker");
+const championshipTitle = document.querySelector("#championship-title");
+const championshipSummary = document.querySelector("#championship-summary");
+const championshipStandings = document.querySelector("#championship-standings");
+const championshipContinue = document.querySelector("#championship-continue");
+const trophyCeremony = document.querySelector("#trophy-ceremony");
+const championName = document.querySelector("#champion-name");
+const pauseMenu = document.querySelector("#pause-menu");
+const pauseResume = document.querySelector("#pause-resume");
+const pauseHome = document.querySelector("#pause-home");
+const pauseChangeCar = document.querySelector("#pause-change-car");
+const pauseSettings = document.querySelector("#pause-settings");
+const pauseTrackSelect = document.querySelector("#pause-track-select");
+
+let elapsedRaceTime = 0;
+let menuCameraTime = 0;
+let lapState = null;
+let activeMode = "quick-race";
+let playerVehicle = null;
+let raceFinished = false;
+let paused = false;
+let selectedTrackId = "alpine-pass";
+let raceCountdownRemaining = 0;
+
+setActiveTrack(selectedTrackId);
+lapState = track.createLapState();
+
+menu = new MenuController({
+  onStart: ({ vehicle, mode, trackId }) => startRace(vehicle, mode, trackId),
   onMenuSound: (type) => {
     audio.resume();
     if (type === "confirm") {
@@ -87,22 +113,54 @@ const menu = new MenuController({
       audio.setVolume(key, value);
     }
   },
+  onTrackChange: (trackId) => {
+    selectedTrackId = trackId;
+    if (!raceStarted) {
+      setActiveTrack(trackId);
+    }
+  },
 });
-const championshipOverlay = document.querySelector("#championship-overlay");
-const championshipKicker = document.querySelector("#championship-kicker");
-const championshipTitle = document.querySelector("#championship-title");
-const championshipSummary = document.querySelector("#championship-summary");
-const championshipStandings = document.querySelector("#championship-standings");
-const championshipContinue = document.querySelector("#championship-continue");
-const trophyCeremony = document.querySelector("#trophy-ceremony");
-const championName = document.querySelector("#champion-name");
+menu.setTrack(selectedTrackId);
 
-let elapsedRaceTime = 0;
-let menuCameraTime = 0;
-let lapState = track.createLapState();
-let activeMode = "quick-race";
-let playerVehicle = null;
-let raceFinished = false;
+populatePauseTrackSelect();
+bindPauseMenu();
+
+function setActiveTrack(trackId, { resetExistingRace = false } = {}) {
+  if (track?.id === trackId && !resetExistingRace) {
+    return;
+  }
+
+  if (track) {
+    scene.remove(track.group);
+  }
+
+  if (atmosphere) {
+    scene.remove(atmosphere);
+  }
+
+  track = new Track(trackId);
+  selectedTrackId = track.id;
+  scene.add(track.group);
+  scene.background = new THREE.Color(track.backgroundColor ?? 0x8fb7dc);
+  scene.fog = new THREE.Fog(track.fogColor ?? 0x8fb7dc, track.fogNear ?? 120, track.fogFar ?? 620);
+  atmosphere = buildAtmosphere(scene, track);
+
+  if (pauseTrackSelect) {
+    pauseTrackSelect.value = track.id;
+  }
+
+  menu?.setTrack(track.id);
+
+  if (player && resetExistingRace) {
+    if (playerVehicle) {
+      createAiRacers(playerVehicle.id, activeMode);
+    }
+    cameraController = new CameraController(camera, player.group, {
+      collisionObjects: track.cameraCollisionObjects,
+    });
+    resetRace();
+  }
+}
 
 function resetRace() {
   if (!player || !cameraController) {
@@ -112,16 +170,22 @@ function resetRace() {
   player.reset(track.startPosition.clone(), track.startRotation);
   resetAiRacers();
   elapsedRaceTime = 0;
-  lapState = track.createLapState();
+  lapState = track.createLapState(activeMode === "practice" ? 0 : track.totalLaps);
   raceFinished = false;
+  raceCountdownRemaining = activeMode === "practice" ? 0 : 2.1;
   cameraController.snapToTarget();
 }
 
-function startRace(vehicle, mode = activeMode) {
+function startRace(vehicle, mode = activeMode, trackId = selectedTrackId) {
   audio.resume();
-  audio.playCountdown();
+  if (mode !== "practice") {
+    audio.playCountdown();
+  }
   activeMode = mode;
   playerVehicle = vehicle;
+  setPaused(false);
+  setActiveTrack(trackId);
+
   if (player) {
     scene.remove(player.group);
   }
@@ -129,12 +193,12 @@ function startRace(vehicle, mode = activeMode) {
   player = new Car({
     ...vehicle,
     name: vehicle.shortName,
-    startPosition: new THREE.Vector3(-5, 0, 12),
-    startRotation: 0,
+    startPosition: track.startPosition.clone(),
+    startRotation: track.startRotation,
     isPlayer: true,
   });
   scene.add(player.group);
-  createAiRacers(vehicle.id);
+  createAiRacers(vehicle.id, activeMode);
 
   if (activeMode === "championship") {
     championship.start(["Player", ...aiRacers.map((racer) => racer.car.name)]);
@@ -151,9 +215,14 @@ function startRace(vehicle, mode = activeMode) {
   resetRace();
 }
 
-function createAiRacers(playerVehicleId) {
+function createAiRacers(playerVehicleId, mode = activeMode) {
   for (const racer of aiRacers) {
     scene.remove(racer.car.group);
+  }
+
+  if (mode === "practice") {
+    aiRacers = [];
+    return;
   }
 
   const allVehicles = TEAMS.flatMap((team) => team.vehicles);
@@ -170,7 +239,6 @@ function createAiRacers(playerVehicleId) {
       startRotation: track.startRotation,
       isPlayer: false,
     });
-    car.maxForwardSpeed = 48 + index * 1.6;
     scene.add(car.group);
 
     const controller = new AIController(car, track, {
@@ -201,7 +269,7 @@ function updateRaceProgress(deltaTime) {
   elapsedRaceTime += deltaTime;
   track.updateLapProgress(player.group.position, lapState);
 
-  if (lapState.finished && !raceFinished) {
+  if (activeMode !== "practice" && lapState.finished && !raceFinished) {
     finishRace();
   }
 }
@@ -230,9 +298,39 @@ function animate() {
     return;
   }
 
+  if (paused) {
+    renderer.render(scene, camera);
+    return;
+  }
+
   if (controls.resetPressed) {
     resetRace();
     input.consumeReset();
+  }
+
+  if (raceCountdownRemaining > 0) {
+    raceCountdownRemaining = Math.max(0, raceCountdownRemaining - deltaTime);
+    cameraController.update(deltaTime, {
+      speed: player.speed,
+      steering: player.steerAmount,
+      drift: player.driftAmount,
+    });
+    hud.update({
+      speed: player.getDisplaySpeed(),
+      gear: player.getGearLabel(),
+      lap: lapState.currentLap,
+      totalLaps: lapState.totalLaps,
+      time: 0,
+      rpm: calculateRpm(player),
+      position: calculateRacePosition(),
+      totalRacers: 1 + aiRacers.length,
+      track,
+      playerPosition: player.group.position,
+      rivalPositions: aiRacers.map((racer) => racer.car.group.position),
+      checkpointName: "Get Ready",
+    });
+    renderer.render(scene, camera);
+    return;
   }
 
   player.update(deltaTime, controls, track);
@@ -252,7 +350,7 @@ function animate() {
     time: elapsedRaceTime,
     rpm: calculateRpm(player),
     position: racePosition,
-    totalRacers: 6,
+    totalRacers: 1 + aiRacers.length,
     track,
     playerPosition: player.group.position,
     rivalPositions: aiRacers.map((racer) => racer.car.group.position),
@@ -349,9 +447,11 @@ function startNextChampionshipRace() {
 
 function showMainMenu() {
   raceStarted = false;
+  setPaused(false);
   activeMode = "quick-race";
   championship.stop();
-  document.querySelector("#menu").classList.remove("is-hidden");
+  document.querySelector("#hud").classList.add("is-hidden");
+  menu.showHome();
 }
 
 function renderStandings(standings) {
@@ -377,6 +477,56 @@ function calculateRacePosition() {
   }).length;
 
   return aheadCount + 1;
+}
+
+function populatePauseTrackSelect() {
+  pauseTrackSelect.innerHTML = "";
+  for (const option of TRACK_OPTIONS) {
+    const item = document.createElement("option");
+    item.value = option.id;
+    item.textContent = option.name;
+    pauseTrackSelect.append(item);
+  }
+  pauseTrackSelect.value = selectedTrackId;
+}
+
+function bindPauseMenu() {
+  pauseResume.addEventListener("click", () => setPaused(false));
+  pauseHome.addEventListener("click", () => showMainMenu());
+  pauseChangeCar.addEventListener("click", () => {
+    raceStarted = false;
+    document.querySelector("#hud").classList.add("is-hidden");
+    setPaused(false);
+    menu.showVehicleSelect();
+  });
+  pauseSettings.addEventListener("click", () => {
+    raceStarted = false;
+    document.querySelector("#hud").classList.add("is-hidden");
+    setPaused(false);
+    menu.showOptions();
+  });
+  pauseTrackSelect.addEventListener("change", () => {
+    selectedTrackId = pauseTrackSelect.value;
+    menu.setTrack(selectedTrackId);
+    setActiveTrack(selectedTrackId, { resetExistingRace: true });
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.code !== "Escape" || !raceStarted) {
+      return;
+    }
+
+    event.preventDefault();
+    setPaused(!paused);
+  });
+}
+
+function setPaused(value) {
+  paused = value;
+  pauseMenu.classList.toggle("is-hidden", !paused);
+  if (paused) {
+    input.clear();
+  }
 }
 
 function calculateRpm(car) {

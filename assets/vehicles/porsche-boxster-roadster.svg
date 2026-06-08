@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 96" role="img" aria-label="Boxster-inspired roadster preview">
+  <rect width="160" height="96" rx="8" fill="#071019"/>
+  <ellipse cx="80" cy="73" rx="57" ry="10" fill="#000" opacity=".45"/>
+  <path d="M23 63 42 43h64l27 18 8 14H15Z" fill="#3bb8d8" stroke="#e0fbff" stroke-width="2"/>
+  <path d="M63 42h37l-8-13H72Z" fill="#0b1a25" stroke="#ccf8ff" stroke-width="2"/>
+  <path d="M42 56h78" stroke="#f7f7f2" stroke-width="7"/>
+  <circle cx="45" cy="75" r="11" fill="#060606"/>
+  <circle cx="116" cy="75" r="11" fill="#060606"/>
+  <circle cx="45" cy="75" r="5" fill="#cfd7df"/>
+  <circle cx="116" cy="75" r="5" fill="#cfd7df"/>
+</svg>

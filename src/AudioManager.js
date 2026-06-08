@@ -142,20 +142,24 @@ export class AudioManager {
 
   #updateEngine(player) {
     const now = this.context.currentTime;
+    const profile = player.engineProfile ?? {};
     const speedRatio = Math.min(Math.abs(player.speed) / player.maxForwardSpeed, 1);
     const throttleLift = 0.35 + speedRatio * 0.65;
-    const frequency = 58 + speedRatio * 235 + Math.sin(now * 34) * 5;
-    const gain = 0.08 + throttleLift * 0.16;
+    const idleHz = profile.idleHz ?? 62;
+    const maxHz = profile.maxHz ?? 285;
+    const roughness = profile.roughness ?? 5;
+    const frequency = idleHz + speedRatio * maxHz + Math.sin(now * 34) * roughness;
+    const gain = (0.08 + throttleLift * 0.16) * (profile.gain ?? 1);
 
     this.engineOscillator.frequency.setTargetAtTime(frequency, now, 0.035);
     this.engineLoopGain.gain.setTargetAtTime(gain, now, 0.05);
   }
 
-  #updateTireSqueal(player, controls) {
+  #updateTireSqueal(player) {
     const now = this.context.currentTime;
     const drift = Math.min(Math.abs(player.driftAmount), 1);
-    const handbrake = controls?.handbrake ? 0.8 : 0;
-    const targetGain = Math.max(drift * 0.13, handbrake * Math.min(Math.abs(player.speed) / 30, 1) * 0.12);
+    const speedRatio = Math.min(Math.abs(player.speed) / 30, 1);
+    const targetGain = drift > 0.38 ? drift * speedRatio * 0.11 : 0.0001;
 
     this.squealGain.gain.setTargetAtTime(Math.max(targetGain, 0.0001), now, 0.04);
     this.squealOscillator.frequency.setTargetAtTime(980 + drift * 620, now, 0.04);

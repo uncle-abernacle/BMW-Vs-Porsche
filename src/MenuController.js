@@ -1,12 +1,14 @@
 import * as THREE from "three";
 import { Car } from "./Car.js";
 import { TEAMS } from "./VehicleCatalog.js";
+import { TRACK_OPTIONS } from "./Track.js";
 
 export class MenuController {
-  constructor({ onStart, onMenuSound, onOptionsChange }) {
+  constructor({ onStart, onMenuSound, onOptionsChange, onTrackChange }) {
     this.onStart = onStart;
     this.onMenuSound = onMenuSound;
     this.onOptionsChange = onOptionsChange;
+    this.onTrackChange = onTrackChange;
     this.menu = document.querySelector("#menu");
     this.mainScreen = document.querySelector("[data-menu-screen='main']");
     this.modeScreen = document.querySelector("[data-menu-screen='mode']");
@@ -21,6 +23,7 @@ export class MenuController {
     this.vehicleTitle = document.querySelector("#vehicle-title");
     this.vehicleDescription = document.querySelector("#vehicle-description");
     this.previewCanvas = document.querySelector("#vehicle-preview");
+    this.trackSelect = document.querySelector("#track-select");
     this.startButton = document.querySelector("#start-race");
     this.backButtons = this.menu.querySelectorAll("[data-menu-back]");
     this.modeButtons = [...this.menu.querySelectorAll("[data-menu-action]")];
@@ -34,6 +37,7 @@ export class MenuController {
 
     this.selectedTeam = TEAMS[0];
     this.selectedVehicle = TEAMS[0].vehicles[0];
+    this.selectedTrackId = TRACK_OPTIONS[2].id;
     this.selectedMode = "quick-race";
     this.currentScreenName = "main";
     this.selectedIndexByScreen = new Map();
@@ -56,6 +60,11 @@ export class MenuController {
         kicker: "Series mode",
         description: "Race a three-round BMW vs Porsche series with points after every event.",
       },
+      practice: {
+        title: "Practice",
+        kicker: "Free run",
+        description: "Drive unlimited laps with no opponents and no race finish.",
+      },
       options: {
         title: "Options",
         kicker: "Garage setup",
@@ -65,6 +74,7 @@ export class MenuController {
 
     this.#buildPreviewScene();
     this.#bindEvents();
+    this.#renderTrackOptions();
     this.#renderTeams();
     this.#renderVehicles();
     this.#selectVehicle(this.selectedVehicle.id);
@@ -76,6 +86,34 @@ export class MenuController {
 
   hide() {
     this.menu.classList.add("is-hidden");
+  }
+
+  showHome() {
+    this.menu.classList.remove("is-hidden");
+    this.#showScreen("main");
+  }
+
+  showVehicleSelect() {
+    this.menu.classList.remove("is-hidden");
+    this.#renderVehicles();
+    this.#selectVehicle(this.selectedVehicle.id);
+    this.#showScreen("vehicle");
+  }
+
+  showOptions() {
+    this.menu.classList.remove("is-hidden");
+    this.#handleMenuAction("options");
+  }
+
+  setTrack(trackId) {
+    if (!TRACK_OPTIONS.some((track) => track.id === trackId)) {
+      return;
+    }
+
+    this.selectedTrackId = trackId;
+    if (this.trackSelect) {
+      this.trackSelect.value = trackId;
+    }
   }
 
   #bindEvents() {
@@ -94,7 +132,13 @@ export class MenuController {
         team: this.selectedTeam,
         vehicle: this.selectedVehicle,
         mode: this.selectedMode,
+        trackId: this.selectedTrackId,
       });
+    });
+
+    this.trackSelect?.addEventListener("change", () => {
+      this.selectedTrackId = this.trackSelect.value;
+      this.onTrackChange?.(this.selectedTrackId);
     });
 
     this.menu.addEventListener("mouseover", (event) => {
@@ -148,6 +192,17 @@ export class MenuController {
     }
   }
 
+  #renderTrackOptions() {
+    if (!this.trackSelect) {
+      return;
+    }
+
+    this.trackSelect.innerHTML = TRACK_OPTIONS.map(
+      (track) => `<option value="${track.id}">${track.name}</option>`,
+    ).join("");
+    this.trackSelect.value = this.selectedTrackId;
+  }
+
   #renderVehicles() {
     this.vehicleGrid.innerHTML = "";
 
@@ -161,7 +216,7 @@ export class MenuController {
           <img src="${vehicle.image}" alt="${vehicle.name} preview" loading="eager" />
         </span>
         <strong>${vehicle.name}</strong>
-        <span>${vehicle.className}</span>
+        <span>${vehicle.className} | ${Math.round(vehicle.maxForwardSpeed * 3.1)} mph | Grip ${vehicle.lateralGrip.toFixed(1)}</span>
       `;
       button.addEventListener("click", () => {
         this.onMenuSound?.("confirm");

@@ -16,6 +16,14 @@ export class Car {
     cabinHeight = 0.95,
     cabinOffsetZ = -0.75,
     spoilerWidth = 4.4,
+    maxForwardSpeed = null,
+    acceleration = 36,
+    brakeForce = 46,
+    lateralGrip = 7.8,
+    handbrakeGrip = 2.2,
+    turnRate = 2.65,
+    airDrag = 0.012,
+    engineProfile = {},
     startPosition = new THREE.Vector3(),
     startRotation = 0,
     isPlayer = false,
@@ -31,17 +39,24 @@ export class Car {
     // Internal velocity is measured in world units per second. The HUD maps
     // the player car's 58 world-unit top speed to roughly 180 mph.
     this.mphPerWorldUnit = 3.1;
-    this.maxForwardSpeed = isPlayer ? 58 : 44;
+    this.maxForwardSpeed = maxForwardSpeed ?? (isPlayer ? 58 : 44);
     this.maxReverseSpeed = -15;
-    this.acceleration = 36;
+    this.acceleration = acceleration;
     this.reverseAcceleration = 22;
-    this.brakeForce = 46;
+    this.brakeForce = brakeForce;
     this.handbrakeForce = 18;
     this.rollingDrag = 0.12;
-    this.airDrag = 0.012;
-    this.lateralGrip = 7.8;
-    this.handbrakeGrip = 2.2;
-    this.turnRate = 2.65;
+    this.airDrag = airDrag;
+    this.lateralGrip = lateralGrip;
+    this.handbrakeGrip = handbrakeGrip;
+    this.turnRate = turnRate;
+    this.engineProfile = {
+      idleHz: 62,
+      maxHz: 285,
+      roughness: 5,
+      gain: 1,
+      ...engineProfile,
+    };
 
     this.group = new THREE.Group();
     this.group.name = `${name} Car`;
@@ -343,6 +358,28 @@ export class Car {
     );
     reflectionStrip.position.set(0, lowerBody.position.y + height * 0.55, -length * 0.22);
     this.group.add(reflectionStrip);
+
+    const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(width * 0.92, 0.22, 0.28), stripeMaterial);
+    frontBumper.position.set(0, lowerBody.position.y - height * 0.24, -length * 0.54);
+    frontBumper.castShadow = true;
+    this.group.add(frontBumper);
+
+    const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(width * 0.88, 0.24, 0.3), stripeMaterial);
+    rearBumper.position.set(0, lowerBody.position.y - height * 0.22, length * 0.54);
+    rearBumper.castShadow = true;
+    this.group.add(rearBumper);
+
+    for (const side of [-1, 1]) {
+      const sideSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, length * 0.72), stripeMaterial);
+      sideSkirt.position.set(side * width * 0.54, lowerBody.position.y - height * 0.18, 0.05);
+      sideSkirt.castShadow = true;
+      this.group.add(sideSkirt);
+
+      const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.38), glassMaterial);
+      mirror.position.set(side * width * 0.58, cabin.position.y + 0.04, cabinOffsetZ - cabinLength * 0.28);
+      mirror.castShadow = true;
+      this.group.add(mirror);
+    }
 
     const shadowBlob = new THREE.Mesh(new THREE.CircleGeometry(Math.max(width, length) * 0.62, 18), shadowMaterial);
     shadowBlob.rotation.x = -Math.PI / 2;
