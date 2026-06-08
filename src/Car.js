@@ -34,6 +34,8 @@ export class Car {
     this.steerAmount = 0;
     this.driftAmount = 0;
     this.lastSurfaceCorrectionStrength = 0;
+    this.roadPitch = 0;
+    this.roadRoll = 0;
     this.velocity = new THREE.Vector3();
 
     // Internal velocity is measured in world units per second. The HUD maps
@@ -83,6 +85,8 @@ export class Car {
     this.steerAmount = 0;
     this.driftAmount = 0;
     this.lastSurfaceCorrectionStrength = 0;
+    this.roadPitch = 0;
+    this.roadRoll = 0;
     this.velocity.set(0, 0, 0);
   }
 
@@ -237,20 +241,24 @@ export class Car {
   }
 
   #alignToRoad(deltaTime, track) {
-    if (!track.getRoadHeightAtPosition) {
+    if (!track.getRoadHeightAtPosition && !track.getRoadSurfaceAtPosition) {
       return;
     }
 
-    const targetHeight = track.getRoadHeightAtPosition(this.group.position);
+    const surface = track.getRoadSurfaceAtPosition?.(this.group.position);
+    const targetHeight = surface?.height ?? track.getRoadHeightAtPosition(this.group.position);
     this.group.position.y =
-      deltaTime <= 0 ? targetHeight : THREE.MathUtils.damp(this.group.position.y, targetHeight, 22, deltaTime);
+      deltaTime <= 0 ? targetHeight : THREE.MathUtils.damp(this.group.position.y, targetHeight, 30, deltaTime);
+    this.roadPitch = THREE.MathUtils.damp(this.roadPitch, surface?.pitch ?? 0, 12, deltaTime);
+    this.roadRoll = THREE.MathUtils.damp(this.roadRoll, surface?.roll ?? 0, 12, deltaTime);
   }
 
   #tiltBody(deltaTime, speedRatio, lateralSpeed) {
     const corneringRoll = this.steerAmount * speedRatio * 0.16;
     const driftRoll = THREE.MathUtils.clamp(lateralSpeed / 45, -0.1, 0.1);
-    const targetRoll = corneringRoll + driftRoll;
-    const targetPitch = THREE.MathUtils.clamp(-this.speed / this.maxForwardSpeed, -0.13, 0.1);
+    const targetRoll = this.roadRoll + corneringRoll + driftRoll;
+    const dynamicPitch = THREE.MathUtils.clamp(-this.speed / this.maxForwardSpeed, -0.13, 0.1);
+    const targetPitch = this.roadPitch + dynamicPitch;
 
     this.group.rotation.z = THREE.MathUtils.damp(this.group.rotation.z, targetRoll, 8, deltaTime);
     this.group.rotation.x = THREE.MathUtils.damp(this.group.rotation.x, targetPitch, 5, deltaTime);
@@ -376,9 +384,22 @@ export class Car {
       this.group.add(sideSkirt);
 
       const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.38), glassMaterial);
-      mirror.position.set(side * width * 0.58, cabin.position.y + 0.04, cabinOffsetZ - cabinLength * 0.28);
+      mirror.position.set(
+        side * (cabinWidth * 0.5 + 0.18),
+        cabin.position.y + cabinHeight * 0.02,
+        cabin.position.z - cabinLength * 0.22,
+      );
       mirror.castShadow = true;
       this.group.add(mirror);
+
+      const mirrorArm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.07, 0.18), glassMaterial);
+      mirrorArm.position.set(
+        side * (cabinWidth * 0.5 + 0.04),
+        cabin.position.y - cabinHeight * 0.02,
+        cabin.position.z - cabinLength * 0.21,
+      );
+      mirrorArm.castShadow = true;
+      this.group.add(mirrorArm);
     }
 
     const shadowBlob = new THREE.Mesh(new THREE.CircleGeometry(Math.max(width, length) * 0.62, 18), shadowMaterial);

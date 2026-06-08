@@ -523,6 +523,7 @@ function bindPauseMenu() {
 
 function setPaused(value) {
   paused = value;
+  audio.setPaused(paused);
   pauseMenu.classList.toggle("is-hidden", !paused);
   if (paused) {
     input.clear();

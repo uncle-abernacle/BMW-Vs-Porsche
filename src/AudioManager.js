@@ -5,12 +5,16 @@ export class AudioManager {
     this.engineGain = null;
     this.sfxGain = null;
     this.menuGain = null;
-    this.engineOscillator = null;
+    this.engineVoices = [];
+    this.engineLoopGain = null;
+    this.engineFilter = null;
+    this.engineRumble = null;
     this.enginePanner = null;
     this.squealOscillator = null;
     this.squealGain = null;
     this.initialized = false;
     this.muted = false;
+    this.paused = false;
     this.lastCollisionTime = 0;
     this.volumes = {
       master: 0.85,
@@ -36,6 +40,18 @@ export class AudioManager {
   setMuted(muted) {
     this.muted = muted;
     this.#applyVolumes();
+  }
+
+  setPaused(paused) {
+    this.paused = paused;
+
+    if (!this.initialized) {
+      return;
+    }
+
+    if (paused) {
+      this.#silenceLiveLoops();
+    }
   }
 
   playMenuMove() {
@@ -84,7 +100,7 @@ export class AudioManager {
     if (!this.initialized || !player) return;
 
     this.#updateListener(camera);
-    this.#updateEngine(player);
+    this.#updateEngine(player, controls);
     this.#updateTireSqueal(player, controls);
     this.#updateEnginePosition(player.group.position);
     this.#detectSoftCollisions(player, aiRacers);
@@ -113,17 +129,51 @@ export class AudioManager {
   }
 
   #createEngineLoop() {
-    const oscillator = this.context.createOscillator();
-    const gain = this.context.createGain();
+    const loopGain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    const rumbleFilter = this.context.createBiquadFilter();
 
-    oscillator.type = "sawtooth";
-    oscillator.frequency.value = 70;
-    gain.gain.value = 0.0001;
-    oscillator.connect(gain).connect(this.engineGain);
-    oscillator.start();
+    loopGain.gain.value = 0.0001;
+    filter.type = "lowpass";
+    filter.frequency.value = 920;
+    filter.Q.value = 0.55;
+    rumbleFilter.type = "lowpass";
+    rumbleFilter.frequency.value = 130;
+    rumbleFilter.Q.value = 0.8;
 
-    this.engineOscillator = oscillator;
-    this.engineLoopGain = gain;
+    loopGain.connect(filter).connect(this.engineGain);
+    this.engineVoices = [
+      { harmonic: 1, detune: -5, type: "sawtooth", gain: 0.42 },
+      { harmonic: 0.5, detune: 0, type: "triangle", gain: 0.22 },
+      { harmonic: 2, detune: 7, type: "sawtooth", gain: 0.16 },
+      { harmonic: 3, detune: -11, type: "square", gain: 0.055 },
+    ].map((voice) => {
+      const oscillator = this.context.createOscillator();
+      const gain = this.context.createGain();
+
+      oscillator.type = voice.type;
+      oscillator.frequency.value = 70 * voice.harmonic;
+      oscillator.detune.value = voice.detune;
+      gain.gain.value = voice.gain;
+      oscillator.connect(gain).connect(loopGain);
+      oscillator.start();
+      return { ...voice, oscillator, gainNode: gain };
+    });
+
+    const rumbleOscillator = this.context.createOscillator();
+    const rumbleGain = this.context.createGain();
+    rumbleOscillator.type = "triangle";
+    rumbleOscillator.frequency.value = 42;
+    rumbleGain.gain.value = 0.0001;
+    rumbleOscillator.connect(rumbleGain).connect(rumbleFilter).connect(this.engineGain);
+    rumbleOscillator.start();
+
+    this.engineLoopGain = loopGain;
+    this.engineFilter = filter;
+    this.engineRumble = {
+      oscillator: rumbleOscillator,
+      gain: rumbleGain,
+    };
   }
 
   #createSquealLoop() {
@@ -140,23 +190,52 @@ export class AudioManager {
     this.squealGain = gain;
   }
 
-  #updateEngine(player) {
+  #updateEngine(player, controls) {
     const now = this.context.currentTime;
+
+    if (this.paused) {
+      this.#silenceLiveLoops();
+      return;
+    }
+
     const profile = player.engineProfile ?? {};
     const speedRatio = Math.min(Math.abs(player.speed) / player.maxForwardSpeed, 1);
-    const throttleLift = 0.35 + speedRatio * 0.65;
+    const load = controls?.throttle ? 1 : controls?.brakeReverse ? 0.45 : 0.26;
+    const gearCount = profile.gears ?? 5;
+    const gearPhase = speedRatio >= 0.985 ? 0.94 : (speedRatio * gearCount) % 1;
+    const revRatio = Math.min(1, 0.22 + gearPhase * 0.78 + load * 0.04);
     const idleHz = profile.idleHz ?? 62;
     const maxHz = profile.maxHz ?? 285;
     const roughness = profile.roughness ?? 5;
-    const frequency = idleHz + speedRatio * maxHz + Math.sin(now * 34) * roughness;
-    const gain = (0.08 + throttleLift * 0.16) * (profile.gain ?? 1);
+    const engineBaseHz =
+      idleHz +
+      revRatio * maxHz +
+      Math.sin(now * (18 + revRatio * 34)) * roughness +
+      Math.sin(now * 7.3) * roughness * 0.42;
+    const gain = (0.065 + load * 0.11 + speedRatio * 0.055) * (profile.gain ?? 1);
+    const filterFrequency = 520 + revRatio * 1900 + load * 340;
+    const rumbleFrequency = 34 + speedRatio * 46 + load * 10;
+    const rumbleGain = (0.015 + load * 0.038) * (profile.gain ?? 1);
 
-    this.engineOscillator.frequency.setTargetAtTime(frequency, now, 0.035);
+    for (const voice of this.engineVoices) {
+      voice.oscillator.frequency.setTargetAtTime(engineBaseHz * voice.harmonic, now, 0.035);
+      voice.gainNode.gain.setTargetAtTime(voice.gain * (0.72 + load * 0.32), now, 0.06);
+    }
+
     this.engineLoopGain.gain.setTargetAtTime(gain, now, 0.05);
+    this.engineFilter.frequency.setTargetAtTime(filterFrequency, now, 0.08);
+    this.engineRumble.oscillator.frequency.setTargetAtTime(rumbleFrequency, now, 0.08);
+    this.engineRumble.gain.gain.setTargetAtTime(rumbleGain, now, 0.08);
   }
 
   #updateTireSqueal(player) {
     const now = this.context.currentTime;
+
+    if (this.paused) {
+      this.squealGain.gain.setTargetAtTime(0.0001, now, 0.025);
+      return;
+    }
+
     const drift = Math.min(Math.abs(player.driftAmount), 1);
     const speedRatio = Math.min(Math.abs(player.speed) / 30, 1);
     const targetGain = drift > 0.38 ? drift * speedRatio * 0.11 : 0.0001;
@@ -238,6 +317,13 @@ export class AudioManager {
     } else {
       node.setPosition(position.x ?? 0, position.y ?? 0, position.z ?? 0);
     }
+  }
+
+  #silenceLiveLoops() {
+    const now = this.context.currentTime;
+    this.engineLoopGain?.gain.setTargetAtTime(0.0001, now, 0.025);
+    this.engineRumble?.gain.gain.setTargetAtTime(0.0001, now, 0.025);
+    this.squealGain?.gain.setTargetAtTime(0.0001, now, 0.025);
   }
 
   #applyVolumes() {

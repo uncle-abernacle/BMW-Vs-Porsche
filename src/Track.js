@@ -105,7 +105,7 @@ export class Track {
     this.curve = new THREE.CatmullRomCurve3(this.controlPoints, true, "catmullrom", 0.7);
     this.centerLinePoints = this.#sampleCenterLine();
     this.checkpoints = this.#createCheckpoints();
-    this.startPosition = this.getPointOnCenterLine(0).add(new THREE.Vector3(-4, this.roadSurfaceOffset, 0));
+    this.startPosition = this.#offsetPoint(0, -4).add(new THREE.Vector3(0, this.roadSurfaceOffset, 0));
     this.startRotation = this.#getHeadingAt(0);
 
     this.#buildTerrain();
@@ -199,6 +199,23 @@ export class Track {
 
   getRoadHeightAtPosition(position) {
     return this.#heightAt(this.#nearestTrackInfo(position).t) + 0.12 + this.roadSurfaceOffset;
+  }
+
+  getRoadSurfaceAtPosition(position) {
+    const nearest = this.#nearestTrackInfo(position);
+    const step = 1 / this.samples;
+    const ahead = this.getPointOnCenterLine(nearest.t + step);
+    const behind = this.getPointOnCenterLine(nearest.t - step);
+    const tangent = ahead.sub(behind).normalize();
+    const horizontalLength = Math.max(Math.hypot(tangent.x, tangent.z), 0.001);
+
+    return {
+      height: this.#heightAt(nearest.t) + 0.12 + this.roadSurfaceOffset,
+      pitch: Math.atan2(tangent.y, horizontalLength),
+      roll: 0,
+      progress: nearest.t,
+      point: nearest.point,
+    };
   }
 
   #heightAt(t) {
@@ -336,7 +353,7 @@ export class Track {
       for (const sideSign of [-1, 1]) {
         const supportHeight = Math.max(drop - 0.7, 1);
         const support = new THREE.Mesh(new THREE.BoxGeometry(1.8, supportHeight, 1.8), supportMaterial);
-        support.position.copy(point).addScaledVector(side, sideSign * (this.roadWidth * 0.35));
+        support.position.copy(point).addScaledVector(side, sideSign * (this.roadWidth * 0.5 + 5.2));
         support.position.y = groundY + supportHeight * 0.5;
         support.castShadow = true;
         support.receiveShadow = true;
@@ -435,7 +452,7 @@ export class Track {
 
       for (const side of [-1, 1]) {
         if (insideHairpin || i % 3 === 0) {
-          const block = this.#orientedBox(t, side * (this.roadWidth * 0.5 + 1.2), 1.2, 1.2, 2.8, stoneMaterial);
+          const block = this.#orientedBox(t, side * (this.roadWidth * 0.5 + 6.2), 1.2, 1.2, 2.8, stoneMaterial);
           block.castShadow = true;
           block.receiveShadow = true;
           this.group.add(block);
@@ -451,9 +468,20 @@ export class Track {
     const white = new THREE.MeshStandardMaterial({ color: 0xf7f2db, emissive: 0x2b2616, roughness: 0.58 });
     const black = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.58 });
 
+    const gridSpan = this.roadWidth * 0.72;
+    const squareWidth = gridSpan / 6;
+
     for (let row = 0; row < 3; row += 1) {
       for (let col = 0; col < 6; col += 1) {
-        const square = this.#orientedBox(0.002, -7.5 + col * 3, 2.8, 0.045, 3, (row + col) % 2 ? black : white);
+        const lateral = -gridSpan * 0.5 + squareWidth * (col + 0.5);
+        const square = this.#orientedBox(
+          0.002,
+          lateral,
+          squareWidth * 0.9,
+          0.045,
+          3,
+          (row + col) % 2 ? black : white,
+        );
         square.position.add(this.#forwardAt(0.002).multiplyScalar(row * 3));
         square.position.y += 0.18;
         this.group.add(square);
@@ -512,19 +540,32 @@ export class Track {
       const point = this.getPointOnCenterLine(t);
       const heading = this.#getHeadingAt(t);
       const portal = new THREE.Group();
+      const side = new THREE.Vector3(Math.cos(heading), 0, -Math.sin(heading));
+      const clearOffset = this.roadWidth * 0.5 + 7.5;
 
-      const arch = new THREE.Mesh(new THREE.BoxGeometry(32, 22, 12), tunnelMaterial);
-      arch.position.copy(point);
-      arch.position.y += 10;
-      arch.rotation.y = heading;
-      arch.castShadow = true;
-      portal.add(arch);
+      for (const sideSign of [-1, 1]) {
+        const column = new THREE.Mesh(new THREE.BoxGeometry(3.6, 17, 12), tunnelMaterial);
+        column.position.copy(point).addScaledVector(side, sideSign * clearOffset);
+        column.position.y += 8.5;
+        column.rotation.y = heading;
+        column.castShadow = true;
+        column.receiveShadow = true;
+        portal.add(column);
+        this.cameraCollisionObjects.push(column);
+      }
 
-      const opening = new THREE.Mesh(new THREE.BoxGeometry(20, 15, 12.4), darkMaterial);
-      opening.position.copy(point);
-      opening.position.y += 7.5;
-      opening.rotation.y = heading;
-      portal.add(opening);
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 20, 4.5, 12), tunnelMaterial);
+      beam.position.copy(point);
+      beam.position.y += 17.2;
+      beam.rotation.y = heading;
+      beam.castShadow = true;
+      portal.add(beam);
+
+      const shadowPanel = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 8, 2.2, 12.2), darkMaterial);
+      shadowPanel.position.copy(point);
+      shadowPanel.position.y += 13.7;
+      shadowPanel.rotation.y = heading;
+      portal.add(shadowPanel);
 
       const roof = new THREE.Mesh(new THREE.ConeGeometry(26, 24, 6), tunnelMaterial);
       roof.position.copy(point);
@@ -536,7 +577,6 @@ export class Track {
 
       portal.name = `Tunnel ${index + 1}`;
       this.group.add(portal);
-      this.cameraCollisionObjects.push(arch);
     });
   }
 
@@ -556,7 +596,8 @@ export class Track {
     for (let i = 0; i < 34; i += 1) {
       const t = i / 34;
       const side = Math.sin(t * Math.PI * 6) > 0 ? 1 : -1;
-      const cliff = this.#orientedBox(t, side * 25, 18 + (i % 3) * 5, 24 + (i % 5) * 7, 16, cliffMaterial);
+      const cliffOffset = this.roadWidth * 0.5 + 42 + (i % 4) * 3;
+      const cliff = this.#orientedBox(t, side * cliffOffset, 18 + (i % 3) * 5, 24 + (i % 5) * 7, 16, cliffMaterial);
       cliff.position.y -= 9;
       cliff.rotation.y += (i % 3) * 0.2;
       cliff.castShadow = true;
@@ -567,13 +608,13 @@ export class Track {
 
     [0.34, 0.56, 0.86].forEach((t, index) => {
       const side = index % 2 ? -1 : 1;
-      const deck = this.#orientedBox(t, side * 21, 24, 1.2, 12, overlookMaterial);
+      const deck = this.#orientedBox(t, side * (this.roadWidth * 0.5 + 34), 24, 1.2, 12, overlookMaterial);
       deck.position.y += 0.2;
       deck.castShadow = true;
       deck.receiveShadow = true;
       this.group.add(deck);
 
-      const rail = this.#orientedBox(t, side * 28, 24, 2, 1.2, overlookMaterial);
+      const rail = this.#orientedBox(t, side * (this.roadWidth * 0.5 + 42), 24, 2, 1.2, overlookMaterial);
       rail.position.y += 1.4;
       rail.castShadow = true;
       this.group.add(rail);
@@ -630,7 +671,7 @@ export class Track {
 
       for (const direction of [-1, 1]) {
         const post = new THREE.Mesh(new THREE.BoxGeometry(1, 6.8, 1), gateMaterial);
-        post.position.copy(checkpoint.position).addScaledVector(side, direction * (this.roadWidth * 0.5 + 1.6));
+        post.position.copy(checkpoint.position).addScaledVector(side, direction * (this.roadWidth * 0.5 + 4.2));
         post.position.y += 3.4;
         post.castShadow = true;
         gate.add(post);
