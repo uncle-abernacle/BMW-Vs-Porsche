@@ -501,8 +501,8 @@ body {
 
 .vehicle-card {
   position: relative;
-  grid-template-columns: 26px 1fr;
-  min-height: 82px;
+  grid-template-columns: 112px 1fr;
+  min-height: 96px;
   align-items: center;
 }
 
@@ -516,13 +516,54 @@ body {
   background: rgba(246, 199, 68, 0.12);
 }
 
-.vehicle-card__swatch {
+.vehicle-card__thumbnail {
   grid-row: 1 / span 2;
-  width: 20px;
-  height: 42px;
+  display: grid;
+  place-items: center;
+  width: 98px;
+  height: 58px;
   border: 2px solid rgba(255, 255, 255, 0.62);
-  border-radius: 6px;
-  background: var(--vehicle-color);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0)),
+    radial-gradient(circle at 50% 80%, rgba(246, 199, 68, 0.18), transparent 58%),
+    rgba(3, 7, 11, 0.72);
+  overflow: hidden;
+}
+
+.vehicle-card__thumbnail svg {
+  width: 94px;
+  height: 56px;
+  transform: skewX(4deg);
+}
+
+.vehicle-thumb__shadow {
+  fill: rgba(0, 0, 0, 0.46);
+}
+
+.vehicle-thumb__body {
+  fill: var(--vehicle-color);
+  stroke: rgba(255, 255, 255, 0.52);
+  stroke-width: 1;
+}
+
+.vehicle-thumb__glass {
+  fill: #0c1720;
+  stroke: rgba(216, 238, 255, 0.58);
+  stroke-width: 1;
+}
+
+.vehicle-thumb__stripe {
+  fill: var(--stripe-color);
+  opacity: 0.95;
+}
+
+.vehicle-thumb__tire {
+  fill: #070707;
+}
+
+.vehicle-thumb__rim {
+  fill: #cfd7df;
 }
 
 .mode-list {

@@ -114,6 +114,7 @@ export class Car {
     this.speed = this.velocity.dot(this.#getForwardVector());
 
     this.#keepOnTrack(track);
+    this.#alignToRoad(deltaTime, track);
     this.#tiltBody(deltaTime, speedRatio, lateralSpeed);
     this.animateWheels(deltaTime, this.speed);
   }
@@ -218,6 +219,15 @@ export class Car {
     this.velocity.multiplyScalar(correction.speedMultiplier);
     this.speed = this.velocity.dot(this.#getForwardVector());
     this.lastSurfaceCorrectionStrength = correction.strength;
+  }
+
+  #alignToRoad(deltaTime, track) {
+    if (!track.getRoadHeightAtPosition) {
+      return;
+    }
+
+    const targetHeight = track.getRoadHeightAtPosition(this.group.position);
+    this.group.position.y = THREE.MathUtils.damp(this.group.position.y, targetHeight, 18, deltaTime);
   }
 
   #tiltBody(deltaTime, speedRatio, lateralSpeed) {

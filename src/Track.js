@@ -129,6 +129,10 @@ export class Track {
     return nearestIndex / this.centerLinePoints.length;
   }
 
+  getRoadHeightAtPosition(position) {
+    return this.#nearestCenterLinePoint(position).y;
+  }
+
   #heightAt(t) {
     return (
       Math.sin(t * Math.PI * 2) * 10 +
@@ -197,8 +201,10 @@ export class Track {
         emissive: 0x07080a,
         roughness: 0.78,
         flatShading: true,
+        side: THREE.DoubleSide,
       }),
     );
+    road.position.y = 0.08;
     road.receiveShadow = true;
     this.group.add(road);
 
@@ -209,9 +215,10 @@ export class Track {
         emissive: 0x151207,
         roughness: 0.94,
         flatShading: true,
+        side: THREE.DoubleSide,
       }),
     );
-    shoulder.position.y = -0.04;
+    shoulder.position.y = 0.02;
     shoulder.receiveShadow = true;
     this.group.add(shoulder);
   }
