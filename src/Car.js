@@ -227,7 +227,8 @@ export class Car {
     }
 
     const targetHeight = track.getRoadHeightAtPosition(this.group.position);
-    this.group.position.y = THREE.MathUtils.damp(this.group.position.y, targetHeight, 18, deltaTime);
+    this.group.position.y =
+      deltaTime <= 0 ? targetHeight : THREE.MathUtils.damp(this.group.position.y, targetHeight, 22, deltaTime);
   }
 
   #tiltBody(deltaTime, speedRatio, lateralSpeed) {

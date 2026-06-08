@@ -13,6 +13,7 @@ export class Track {
     this.samples = 280;
     this.totalLaps = 3;
     this.checkpointRadius = 22;
+    this.roadSurfaceOffset = 0.08;
     this.backgroundColor = 0xb9ddff;
     this.skyColor = 0xc7e6ff;
     this.fogColor = 0xc5d8df;
@@ -40,7 +41,7 @@ export class Track {
     this.curve = new THREE.CatmullRomCurve3(this.controlPoints, true, "catmullrom", 0.7);
     this.centerLinePoints = this.#sampleCenterLine();
     this.checkpoints = this.#createCheckpoints();
-    this.startPosition = this.getPointOnCenterLine(0).add(new THREE.Vector3(-4, 0, 0));
+    this.startPosition = this.getPointOnCenterLine(0).add(new THREE.Vector3(-4, this.roadSurfaceOffset, 0));
     this.startRotation = this.#getHeadingAt(0);
 
     this.#buildTerrain();
@@ -130,7 +131,7 @@ export class Track {
   }
 
   getRoadHeightAtPosition(position) {
-    return this.#nearestCenterLinePoint(position).y;
+    return this.#nearestCenterLinePoint(position).y + this.roadSurfaceOffset;
   }
 
   #heightAt(t) {
@@ -204,7 +205,7 @@ export class Track {
         side: THREE.DoubleSide,
       }),
     );
-    road.position.y = 0.08;
+    road.position.y = this.roadSurfaceOffset;
     road.receiveShadow = true;
     this.group.add(road);
 

@@ -155,7 +155,9 @@ export class AIController {
     const tangent = next.sub(point).normalize();
     const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
 
-    return point.addScaledVector(side, laneOffset);
+    point.addScaledVector(side, laneOffset);
+    point.y = this.track.getRoadHeightAtPosition(point);
+    return point;
   }
 
   #getHeadingAt(progress) {
