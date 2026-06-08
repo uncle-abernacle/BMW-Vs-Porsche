@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { Car } from "./Car.js";
+import { Car, MPH_PER_WORLD_UNIT } from "./Car.js";
 import { TEAMS } from "./VehicleCatalog.js";
 import { TRACK_OPTIONS } from "./Track.js";
 
@@ -216,7 +216,7 @@ export class MenuController {
           <img src="${vehicle.image}" alt="${vehicle.name} preview" loading="eager" />
         </span>
         <strong>${vehicle.name}</strong>
-        <span>${vehicle.className} | ${Math.round(vehicle.maxForwardSpeed * 3.1)} mph | Grip ${vehicle.lateralGrip.toFixed(1)}</span>
+        <span>${vehicle.className} | ${Math.round(vehicle.maxForwardSpeed * MPH_PER_WORLD_UNIT)} mph | Grip ${vehicle.lateralGrip.toFixed(1)}</span>
       `;
       button.addEventListener("click", () => {
         this.onMenuSound?.("confirm");

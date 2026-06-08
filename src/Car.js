@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+export const MPH_PER_WORLD_UNIT = 3.1;
+
 // Car is a small arcade-physics vehicle. It intentionally favors responsive
 // steering and readable behavior over simulation accuracy, which fits the
 // PS2-era arcade racer target for this starter project.
@@ -40,7 +42,7 @@ export class Car {
 
     // Internal velocity is measured in world units per second. The HUD maps
     // the player car's 58 world-unit top speed to roughly 180 mph.
-    this.mphPerWorldUnit = 3.1;
+    this.mphPerWorldUnit = MPH_PER_WORLD_UNIT;
     this.maxForwardSpeed = maxForwardSpeed ?? (isPlayer ? 58 : 44);
     this.maxReverseSpeed = -15;
     this.acceleration = acceleration;
@@ -161,8 +163,10 @@ export class Car {
   }
 
   #applyDriveForces(deltaTime, { throttle, brakeOrReverse, handbrake, forward, forwardSpeed }) {
+    const forwardSpeedRatio = THREE.MathUtils.clamp(forwardSpeed / this.maxForwardSpeed, 0, 1);
+
     if (throttle && forwardSpeed < this.maxForwardSpeed) {
-      const accelerationFade = 1 - THREE.MathUtils.clamp(forwardSpeed / this.maxForwardSpeed, 0, 1) * 0.42;
+      const accelerationFade = 1 - forwardSpeedRatio * 0.3;
       this.velocity.addScaledVector(forward, this.acceleration * accelerationFade * deltaTime);
     }
 
@@ -179,10 +183,25 @@ export class Car {
       this.velocity.addScaledVector(forward, this.handbrakeForce * brakingDirection * deltaTime);
     }
 
-    // Rolling and air drag make high-speed lift-off feel weighty without
-    // preventing the car from reaching the requested 180 mph top speed.
-    this.velocity.addScaledVector(forward, -forwardSpeed * this.rollingDrag * deltaTime);
-    this.velocity.multiplyScalar(1 / (1 + this.velocity.length() * this.airDrag * deltaTime));
+    // Full throttle should reach the advertised limiter. Off throttle keeps
+    // stronger drag so faster cars still feel heavier and coast down naturally.
+    const rollingDrag = throttle ? this.rollingDrag * 0.36 : this.rollingDrag;
+    const airDrag = throttle ? this.airDrag * 0.16 : this.airDrag;
+    this.velocity.addScaledVector(forward, -forwardSpeed * rollingDrag * deltaTime);
+    this.velocity.multiplyScalar(1 / (1 + this.velocity.length() * airDrag * deltaTime));
+
+    const correctedForwardSpeed = this.velocity.dot(forward);
+    const topSpeedHold = this.maxForwardSpeed;
+
+    if (
+      throttle &&
+      !brakeOrReverse &&
+      !handbrake &&
+      correctedForwardSpeed > this.maxForwardSpeed * 0.95 &&
+      correctedForwardSpeed < topSpeedHold
+    ) {
+      this.velocity.addScaledVector(forward, topSpeedHold - correctedForwardSpeed);
+    }
   }
 
   #applyLateralGrip(deltaTime, { handbrake, right, lateralSpeed, speedRatio }) {
