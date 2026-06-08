@@ -50,11 +50,12 @@ export class AIController {
     const heading = this.#getHeadingAt(progress);
 
     this.car.reset(position, heading);
+    this.car.trackProgress = THREE.MathUtils.euclideanModulo(progress, 1);
     this.previousPosition.copy(position);
   }
 
   update(deltaTime, nearbyCars = []) {
-    const progress = this.track.getProgressAtPosition(this.car.group.position);
+    const progress = this.track.getProgressAtPosition(this.car.group.position, this.car.trackProgress);
     const avoidance = this.#calculateAvoidance(nearbyCars);
     const speedRatio = THREE.MathUtils.clamp(Math.abs(this.car.speed) / this.car.maxForwardSpeed, 0, 1);
     const lookAhead = this.settings.lookAhead + speedRatio * 0.026;
@@ -90,7 +91,7 @@ export class AIController {
   }
 
   getProgressScore(lapState) {
-    return (lapState.currentLap - 1) + this.track.getProgressAtPosition(this.car.group.position);
+    return (lapState.currentLap - 1) + this.track.getProgressAtPosition(this.car.group.position, this.car.trackProgress);
   }
 
   #calculateAvoidance(nearbyCars) {
@@ -156,7 +157,7 @@ export class AIController {
     const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
 
     point.addScaledVector(side, laneOffset);
-    point.y = this.track.getRoadHeightAtPosition(point);
+    point.y = this.track.getRoadHeightAtPosition(point, progress);
     return point;
   }
 

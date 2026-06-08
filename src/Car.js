@@ -38,6 +38,7 @@ export class Car {
     this.lastSurfaceCorrectionStrength = 0;
     this.roadPitch = 0;
     this.roadRoll = 0;
+    this.trackProgress = 0;
     this.velocity = new THREE.Vector3();
 
     // Internal velocity is measured in world units per second. The HUD maps
@@ -89,6 +90,7 @@ export class Car {
     this.lastSurfaceCorrectionStrength = 0;
     this.roadPitch = 0;
     this.roadRoll = 0;
+    this.trackProgress = 0;
     this.velocity.set(0, 0, 0);
   }
 
@@ -243,7 +245,8 @@ export class Car {
   }
 
   #keepOnTrack(track) {
-    const correction = track.getSurfaceCorrection(this.group.position);
+    const vehicleHalfWidth = this.design.width * 0.58;
+    const correction = track.getSurfaceCorrection(this.group.position, this.trackProgress, vehicleHalfWidth);
 
     if (!correction) {
       this.lastSurfaceCorrectionStrength = 0;
@@ -257,6 +260,7 @@ export class Car {
     this.velocity.multiplyScalar(correction.speedMultiplier);
     this.speed = this.velocity.dot(this.#getForwardVector());
     this.lastSurfaceCorrectionStrength = correction.strength;
+    this.trackProgress = correction.progress ?? this.trackProgress;
   }
 
   #alignToRoad(deltaTime, track) {
@@ -264,12 +268,43 @@ export class Car {
       return;
     }
 
-    const surface = track.getRoadSurfaceAtPosition?.(this.group.position);
-    const targetHeight = surface?.height ?? track.getRoadHeightAtPosition(this.group.position);
+    const surface = track.getRoadSurfaceAtPosition?.(this.group.position, this.trackProgress);
+    this.trackProgress = surface?.progress ?? this.trackProgress;
+    const wheelFit = surface ? this.#sampleWheelContact(track, surface.progress) : null;
+    const targetHeight = wheelFit?.height ?? surface?.height ?? track.getRoadHeightAtPosition(this.group.position);
     this.group.position.y =
-      deltaTime <= 0 ? targetHeight : THREE.MathUtils.damp(this.group.position.y, targetHeight, 30, deltaTime);
-    this.roadPitch = THREE.MathUtils.damp(this.roadPitch, surface?.pitch ?? 0, 12, deltaTime);
-    this.roadRoll = THREE.MathUtils.damp(this.roadRoll, surface?.roll ?? 0, 12, deltaTime);
+      deltaTime <= 0 ? targetHeight : THREE.MathUtils.damp(this.group.position.y, targetHeight, 35, deltaTime);
+    this.roadPitch = THREE.MathUtils.damp(this.roadPitch, wheelFit?.pitch ?? surface?.pitch ?? 0, 14, deltaTime);
+    this.roadRoll = THREE.MathUtils.damp(this.roadRoll, wheelFit?.roll ?? surface?.roll ?? 0, 14, deltaTime);
+  }
+
+  #sampleWheelContact(track, progress) {
+    const forward = this.#getForwardVector();
+    const right = this.#getRightVector();
+    const center = this.group.position;
+    const halfLength = this.design.length * 0.33;
+    const halfWidth = this.design.width * 0.5;
+    const sample = (forwardOffset, sideOffset) => {
+      const samplePosition = center
+        .clone()
+        .addScaledVector(forward, forwardOffset)
+        .addScaledVector(right, sideOffset);
+      return track.getRoadSurfaceAtPosition(samplePosition, progress);
+    };
+    const frontLeft = sample(halfLength, -halfWidth);
+    const frontRight = sample(halfLength, halfWidth);
+    const rearLeft = sample(-halfLength, -halfWidth);
+    const rearRight = sample(-halfLength, halfWidth);
+    const frontHeight = (frontLeft.height + frontRight.height) * 0.5;
+    const rearHeight = (rearLeft.height + rearRight.height) * 0.5;
+    const leftHeight = (frontLeft.height + rearLeft.height) * 0.5;
+    const rightHeight = (frontRight.height + rearRight.height) * 0.5;
+
+    return {
+      height: (frontHeight + rearHeight) * 0.5,
+      pitch: Math.atan2(frontHeight - rearHeight, halfLength * 2),
+      roll: Math.atan2(rightHeight - leftHeight, halfWidth * 2),
+    };
   }
 
   #tiltBody(deltaTime, speedRatio, lateralSpeed) {

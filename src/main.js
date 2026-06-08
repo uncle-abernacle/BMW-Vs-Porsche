@@ -384,7 +384,7 @@ function getRaceResults() {
   const racers = [
     {
       name: "Player",
-      score: (lapState.currentLap - 1) + track.getProgressAtPosition(player.group.position),
+      score: (lapState.currentLap - 1) + track.getProgressAtPosition(player.group.position, player.trackProgress),
     },
     ...aiRacers.map((racer) => ({
       name: racer.car.name,
@@ -470,7 +470,8 @@ function renderStandings(standings) {
 }
 
 function calculateRacePosition() {
-  const playerScore = (lapState.currentLap - 1) + track.getProgressAtPosition(player.group.position);
+  const playerScore =
+    (lapState.currentLap - 1) + track.getProgressAtPosition(player.group.position, player.trackProgress);
   const aheadCount = aiRacers.filter((racer) => {
     const aiScore = racer.controller.getProgressScore(racer.lapState);
     return aiScore > playerScore;
