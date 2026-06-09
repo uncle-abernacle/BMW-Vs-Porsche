@@ -38,7 +38,7 @@ export class Car {
     this.lastSurfaceCorrectionStrength = 0;
     this.roadPitch = 0;
     this.roadRoll = 0;
-    this.rideHeight = 0.38;
+    this.rideHeight = 0.42;
     this.trackProgress = 0;
     this.velocity = new THREE.Vector3();
 
@@ -66,6 +66,9 @@ export class Car {
 
     this.group = new THREE.Group();
     this.group.name = `${name} Car`;
+    this.visualBody = new THREE.Group();
+    this.visualBody.name = `${name} Visual Body`;
+    this.group.add(this.visualBody);
     this.wheels = [];
     this.design = {
       width,
@@ -91,6 +94,7 @@ export class Car {
     this.lastSurfaceCorrectionStrength = 0;
     this.roadPitch = 0;
     this.roadRoll = 0;
+    this.visualBody.rotation.set(0, 0, 0);
     this.trackProgress = 0;
     this.velocity.set(0, 0, 0);
   }
@@ -295,7 +299,7 @@ export class Car {
       deltaTime <= 0 ? targetHeight : THREE.MathUtils.damp(this.group.position.y, targetHeight, 35, deltaTime);
     const roadPitch = surface?.pitch ?? 0;
     const wheelPitch = wheelFit?.pitch ?? roadPitch;
-    const targetPitch = THREE.MathUtils.clamp(roadPitch * 1.05 + wheelPitch * 0.35, -0.42, 0.42);
+    const targetPitch = THREE.MathUtils.clamp(roadPitch * 1.35 + wheelPitch * 0.6, -0.58, 0.58);
     const targetRoll = THREE.MathUtils.clamp(wheelFit?.roll ?? surface?.roll ?? 0, -0.14, 0.14);
     this.roadPitch = THREE.MathUtils.damp(this.roadPitch, targetPitch, 18, deltaTime);
     this.roadRoll = THREE.MathUtils.damp(this.roadRoll, targetRoll, 11, deltaTime);
@@ -336,8 +340,8 @@ export class Car {
     const targetRoll = THREE.MathUtils.clamp(this.roadRoll + corneringRoll + driftRoll, -0.18, 0.18);
     const targetPitch = this.roadPitch;
 
-    this.group.rotation.z = THREE.MathUtils.damp(this.group.rotation.z, targetRoll, 8, deltaTime);
-    this.group.rotation.x = THREE.MathUtils.damp(this.group.rotation.x, targetPitch, 9, deltaTime);
+    this.visualBody.rotation.z = THREE.MathUtils.damp(this.visualBody.rotation.z, targetRoll, 8, deltaTime);
+    this.visualBody.rotation.x = THREE.MathUtils.damp(this.visualBody.rotation.x, targetPitch, 9, deltaTime);
   }
 
   #buildModel(bodyColor, stripeColor) {
@@ -404,7 +408,7 @@ export class Car {
     lowerBody.position.y = 0.48 + height * 0.5;
     lowerBody.castShadow = true;
     lowerBody.receiveShadow = true;
-    this.group.add(lowerBody);
+    this.visualBody.add(lowerBody);
 
     const cabin = new THREE.Mesh(
       new THREE.BoxGeometry(cabinWidth, cabinHeight, cabinLength),
@@ -412,7 +416,7 @@ export class Car {
     );
     cabin.position.set(0, lowerBody.position.y + height * 0.5 + cabinHeight * 0.45, cabinOffsetZ);
     cabin.castShadow = true;
-    this.group.add(cabin);
+    this.visualBody.add(cabin);
 
     const hoodStripe = new THREE.Mesh(
       new THREE.BoxGeometry(Math.max(width * 0.11, 0.36), 0.028, length * 0.84),
@@ -421,36 +425,36 @@ export class Car {
     hoodStripe.position.set(0, lowerBody.position.y + height * 0.59, -0.28);
     hoodStripe.castShadow = true;
     hoodStripe.renderOrder = 8;
-    this.group.add(hoodStripe);
+    this.visualBody.add(hoodStripe);
 
     const bodyTopY = lowerBody.position.y + height * 0.5;
     const spoiler = new THREE.Mesh(new THREE.BoxGeometry(spoilerWidth, 0.18, 0.45), stripeMaterial);
     spoiler.position.set(0, bodyTopY + 0.22, length * 0.48);
     spoiler.castShadow = true;
-    this.group.add(spoiler);
+    this.visualBody.add(spoiler);
 
     for (const side of [-1, 1]) {
       const spoilerPost = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.3, 0.16), stripeMaterial);
       spoilerPost.position.set(side * spoilerWidth * 0.32, bodyTopY + 0.08, length * 0.44);
       spoilerPost.castShadow = true;
-      this.group.add(spoilerPost);
+      this.visualBody.add(spoilerPost);
     }
 
     const frontLightLeft = new THREE.Mesh(new THREE.BoxGeometry(width * 0.28, 0.18, 0.08), lightMaterial);
     frontLightLeft.position.set(-width * 0.23, lowerBody.position.y + height * 0.12, -length * 0.51);
-    this.group.add(frontLightLeft);
+    this.visualBody.add(frontLightLeft);
 
     const frontLightRight = frontLightLeft.clone();
     frontLightRight.position.x = width * 0.23;
-    this.group.add(frontLightRight);
+    this.visualBody.add(frontLightRight);
 
     const tailLightLeft = new THREE.Mesh(new THREE.BoxGeometry(width * 0.25, 0.16, 0.08), tailLightMaterial);
     tailLightLeft.position.set(-width * 0.24, lowerBody.position.y + height * 0.08, length * 0.51);
-    this.group.add(tailLightLeft);
+    this.visualBody.add(tailLightLeft);
 
     const tailLightRight = tailLightLeft.clone();
     tailLightRight.position.x = width * 0.24;
-    this.group.add(tailLightRight);
+    this.visualBody.add(tailLightRight);
 
     const reflectionStrip = new THREE.Mesh(
       new THREE.BoxGeometry(width * 0.72, 0.028, length * 0.14),
@@ -466,23 +470,23 @@ export class Car {
     );
     reflectionStrip.position.set(0, lowerBody.position.y + height * 0.62, -length * 0.22);
     reflectionStrip.renderOrder = 9;
-    this.group.add(reflectionStrip);
+    this.visualBody.add(reflectionStrip);
 
     const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(width * 0.92, 0.22, 0.28), stripeMaterial);
     frontBumper.position.set(0, lowerBody.position.y - height * 0.24, -length * 0.54);
     frontBumper.castShadow = true;
-    this.group.add(frontBumper);
+    this.visualBody.add(frontBumper);
 
     const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(width * 0.88, 0.24, 0.3), stripeMaterial);
     rearBumper.position.set(0, lowerBody.position.y - height * 0.22, length * 0.54);
     rearBumper.castShadow = true;
-    this.group.add(rearBumper);
+    this.visualBody.add(rearBumper);
 
     for (const side of [-1, 1]) {
       const sideSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, length * 0.4), stripeMaterial);
       sideSkirt.position.set(side * width * 0.5, lowerBody.position.y - height * 0.22, 0.02);
       sideSkirt.castShadow = true;
-      this.group.add(sideSkirt);
+      this.visualBody.add(sideSkirt);
 
       const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.38), glassMaterial);
       mirror.position.set(
@@ -491,7 +495,7 @@ export class Car {
         cabin.position.z - cabinLength * 0.22,
       );
       mirror.castShadow = true;
-      this.group.add(mirror);
+      this.visualBody.add(mirror);
 
       const mirrorArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.2), glassMaterial);
       mirrorArm.position.set(
@@ -500,7 +504,7 @@ export class Car {
         cabin.position.z - cabinLength * 0.21,
       );
       mirrorArm.castShadow = true;
-      this.group.add(mirrorArm);
+      this.visualBody.add(mirrorArm);
     }
 
     const shadowBlob = new THREE.Mesh(new THREE.CircleGeometry(Math.max(width, length) * 0.62, 18), shadowMaterial);
@@ -534,6 +538,6 @@ export class Car {
     wheelGroup.add(rim);
 
     this.wheels.push(wheelGroup);
-    this.group.add(wheelGroup);
+    this.visualBody.add(wheelGroup);
   }
 }

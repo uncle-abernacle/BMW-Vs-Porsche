@@ -38,6 +38,8 @@ export class AIController {
     this.startProgress = startProgress;
     this.stuckTimer = 0;
     this.smoothedSteering = 0;
+    this.passTimer = 0;
+    this.passSide = laneOffset >= 0 ? 1 : -1;
     this.previousPosition = new THREE.Vector3();
     this.currentControls = this.#createEmptyControls();
   }
@@ -47,6 +49,8 @@ export class AIController {
     this.overtakeOffset = 0;
     this.stuckTimer = 0;
     this.smoothedSteering = 0;
+    this.passTimer = 0;
+    this.passSide = laneOffset >= 0 ? 1 : -1;
 
     const position = this.#getOffsetTrackPoint(progress, laneOffset);
     const heading = this.#getHeadingAt(progress);
@@ -67,6 +71,13 @@ export class AIController {
     const laneInfo = this.#getLaneInfo(this.car.group.position, progress);
     const edgeRatio = Math.abs(laneInfo.offset) / Math.max(laneLimit, 0.001);
 
+    if (traffic.passRequest !== 0) {
+      this.passSide = traffic.passRequest;
+      this.passTimer = 1.25 + this.settings.aggression * 1.1;
+    } else {
+      this.passTimer = Math.max(0, this.passTimer - deltaTime);
+    }
+
     this.overtakeOffset = THREE.MathUtils.damp(
       this.overtakeOffset,
       traffic.laneShift,
@@ -74,8 +85,9 @@ export class AIController {
       deltaTime,
     );
 
+    const passLaneOffset = this.passTimer > 0 ? this.passSide * safeLaneLimit * 0.82 : 0;
     let targetLaneOffset = THREE.MathUtils.clamp(
-      this.baseLaneOffset * 0.55 + this.overtakeOffset * 0.45,
+      this.baseLaneOffset * 0.8 + passLaneOffset + this.overtakeOffset * 0.28,
       -safeLaneLimit,
       safeLaneLimit,
     );
@@ -95,11 +107,11 @@ export class AIController {
     const steeringSpeedMultiplier = Math.abs(steeringError) > 0.42 ? THREE.MathUtils.lerp(1, 0.62, Math.min(Math.abs(steeringError), 1)) : 1;
     const recoverySpeed = edgeRatio > 0.68 ? 11 : 0;
     const cornerSpeed = Math.max(
-      22,
+      28,
       recoverySpeed,
       this.settings.targetSpeed * edgeSpeedMultiplier * steeringSpeedMultiplier,
     );
-    const desiredSpeed = Math.max(cornerSpeed, this.car.maxForwardSpeed * 0.98);
+    const desiredSpeed = this.car.maxForwardSpeed;
     const shouldBrake =
       (this.car.speed > cornerSpeed + 6 && this.car.speed > 16 && (Math.abs(steeringError) > 0.92 || edgeRatio > 0.76)) ||
       this.car.speed > this.car.maxForwardSpeed + 1.5;
@@ -131,6 +143,8 @@ export class AIController {
 
   #calculateTraffic(nearbyCars) {
     let laneShift = 0;
+    let passRequest = 0;
+    let closestForwardDistance = Infinity;
     const passRoom = THREE.MathUtils.clamp((this.track.roadWidth - 14) / 12, 0, 1);
     const forward = this.#getForwardVector();
     const right = this.#getRightVector();
@@ -150,10 +164,16 @@ export class AIController {
 
       const passDirection = sideDistance >= 0 ? -1 : 1;
       laneShift += passDirection * THREE.MathUtils.lerp(0.08, 0.42, this.settings.aggression) * passRoom;
+
+      if (forwardDistance < closestForwardDistance) {
+        closestForwardDistance = forwardDistance;
+        passRequest = passDirection;
+      }
     }
 
     return {
       laneShift: THREE.MathUtils.clamp(laneShift, -0.45, 0.45),
+      passRequest,
     };
   }
 
