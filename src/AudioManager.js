@@ -10,6 +10,7 @@ export class AudioManager {
     this.engineFilter = null;
     this.engineRumble = null;
     this.enginePanner = null;
+    this.aiEngineLoops = new Map();
     this.countdownTimers = [];
     this.initialized = false;
     this.muted = false;
@@ -75,6 +76,7 @@ export class AudioManager {
     this.#clearCountdownTimers();
     this.#silenceLiveLoops();
     this.#stopEngineLoop();
+    this.#stopAiEngineLoops();
   }
 
   playMenuMove() {
@@ -139,6 +141,7 @@ export class AudioManager {
 
     this.#updateEngine(player, controls);
     this.#updateEnginePosition(player.group.position);
+    this.#updateAiEngines(aiRacers);
     this.#detectSoftCollisions(player, aiRacers);
   }
 
@@ -153,7 +156,8 @@ export class AudioManager {
     this.menuGain = this.context.createGain();
     this.enginePanner = this.#createPanner();
 
-    this.engineGain.connect(this.enginePanner).connect(this.masterGain);
+    this.engineGain.connect(this.masterGain);
+    this.enginePanner.connect(this.engineGain);
     this.sfxGain.connect(this.masterGain);
     this.menuGain.connect(this.masterGain);
     this.masterGain.connect(this.context.destination);
@@ -176,7 +180,7 @@ export class AudioManager {
     rumbleFilter.frequency.value = 130;
     rumbleFilter.Q.value = 0.8;
 
-    loopGain.connect(filter).connect(this.engineGain);
+    loopGain.connect(filter).connect(this.enginePanner);
     this.engineVoices = [
       { harmonic: 1, detune: -5, type: "sawtooth", gain: 0.42 },
       { harmonic: 0.5, detune: 0, type: "triangle", gain: 0.22 },
@@ -200,7 +204,7 @@ export class AudioManager {
     rumbleOscillator.type = "triangle";
     rumbleOscillator.frequency.value = 42;
     rumbleGain.gain.value = 0.0001;
-    rumbleOscillator.connect(rumbleGain).connect(rumbleFilter).connect(this.engineGain);
+    rumbleOscillator.connect(rumbleGain).connect(rumbleFilter).connect(this.enginePanner);
     rumbleOscillator.start();
 
     this.engineLoopGain = loopGain;
@@ -251,6 +255,86 @@ export class AudioManager {
     this.engineFilter.frequency.setTargetAtTime(filterFrequency, now, 0.08);
     this.engineRumble.oscillator.frequency.setTargetAtTime(rumbleFrequency, now, 0.08);
     this.engineRumble.gain.gain.setTargetAtTime(rumbleGain, now, 0.08);
+  }
+
+  #updateAiEngines(aiRacers) {
+    const now = this.context.currentTime;
+    const activeCars = new Set();
+
+    for (const racer of aiRacers) {
+      const car = racer?.car;
+      if (!car) continue;
+
+      activeCars.add(car);
+      const loop = this.#getAiEngineLoop(car);
+      this.#updateAiEngineLoop(loop, car, racer.controller?.currentControls, now);
+    }
+
+    for (const [car, loop] of this.aiEngineLoops) {
+      if (!activeCars.has(car)) {
+        this.#stopAiEngineLoop(loop);
+        this.aiEngineLoops.delete(car);
+      }
+    }
+  }
+
+  #getAiEngineLoop(car) {
+    if (this.aiEngineLoops.has(car)) {
+      return this.aiEngineLoops.get(car);
+    }
+
+    const oscillator = this.context.createOscillator();
+    const undertone = this.context.createOscillator();
+    const loopGain = this.context.createGain();
+    const undertoneGain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    const panner = this.#createPanner(car.group.position);
+    const detune = ((this.aiEngineLoops.size % 5) - 2) * 7;
+
+    oscillator.type = "sawtooth";
+    undertone.type = "triangle";
+    oscillator.detune.value = detune;
+    undertone.detune.value = detune * 0.6;
+    oscillator.frequency.value = 90;
+    undertone.frequency.value = 45;
+    loopGain.gain.value = 0.0001;
+    undertoneGain.gain.value = 0.2;
+    filter.type = "lowpass";
+    filter.frequency.value = 860;
+    filter.Q.value = 0.5;
+
+    oscillator.connect(loopGain);
+    undertone.connect(undertoneGain).connect(loopGain);
+    loopGain.connect(filter).connect(panner).connect(this.engineGain);
+    oscillator.start();
+    undertone.start();
+
+    const loop = { oscillator, undertone, loopGain, undertoneGain, filter, panner };
+    this.aiEngineLoops.set(car, loop);
+    return loop;
+  }
+
+  #updateAiEngineLoop(loop, car, controls, now) {
+    const profile = car.engineProfile ?? {};
+    const speedRatio = Math.min(Math.abs(car.speed) / car.maxForwardSpeed, 1);
+    const load = controls?.throttle ? 0.92 : controls?.brakeReverse ? 0.36 : 0.52;
+    const gearCount = profile.gears ?? 5;
+    const gearPhase = speedRatio >= 0.985 ? 0.92 : (speedRatio * gearCount) % 1;
+    const revRatio = Math.min(1, 0.2 + gearPhase * 0.76 + load * 0.035);
+    const idleHz = profile.idleHz ?? 62;
+    const maxHz = profile.maxHz ?? 285;
+    const roughness = profile.roughness ?? 5;
+    const baseHz =
+      idleHz +
+      revRatio * maxHz +
+      Math.sin(now * (15 + revRatio * 28)) * roughness * 0.45;
+    const gain = (0.018 + load * 0.034 + speedRatio * 0.03) * (profile.gain ?? 1);
+
+    loop.oscillator.frequency.setTargetAtTime(baseHz, now, 0.06);
+    loop.undertone.frequency.setTargetAtTime(baseHz * 0.5, now, 0.08);
+    loop.loopGain.gain.setTargetAtTime(gain, now, 0.1);
+    loop.filter.frequency.setTargetAtTime(430 + revRatio * 1450 + load * 220, now, 0.12);
+    this.#setAudioPosition(loop.panner, car.group.position);
   }
 
   #detectSoftCollisions(player, aiRacers) {
@@ -340,6 +424,10 @@ export class AudioManager {
     this.engineLoopGain?.gain.setValueAtTime(0, now);
     this.engineRumble?.gain.gain.cancelScheduledValues(now);
     this.engineRumble?.gain.gain.setValueAtTime(0, now);
+    for (const loop of this.aiEngineLoops.values()) {
+      loop.loopGain.gain.cancelScheduledValues(now);
+      loop.loopGain.gain.setValueAtTime(0, now);
+    }
     this.sfxGain?.gain.cancelScheduledValues(now);
     this.sfxGain?.gain.setValueAtTime(0, now);
   }
@@ -371,6 +459,30 @@ export class AudioManager {
     this.engineLoopGain = null;
     this.engineFilter = null;
     this.engineRumble = null;
+  }
+
+  #stopAiEngineLoops() {
+    for (const loop of this.aiEngineLoops.values()) {
+      this.#stopAiEngineLoop(loop);
+    }
+
+    this.aiEngineLoops.clear();
+  }
+
+  #stopAiEngineLoop(loop) {
+    for (const oscillator of [loop.oscillator, loop.undertone]) {
+      try {
+        oscillator.stop();
+      } catch {
+        // Race audio cleanup can run repeatedly when menus and results overlap.
+      }
+      oscillator.disconnect();
+    }
+
+    loop.loopGain.disconnect();
+    loop.undertoneGain.disconnect();
+    loop.filter.disconnect();
+    loop.panner.disconnect();
   }
 
   #clearCountdownTimers() {

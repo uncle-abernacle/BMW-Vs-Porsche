@@ -184,6 +184,7 @@ function resetRace() {
 }
 
 function startRace(vehicle, mode = activeMode, trackId = selectedTrackId) {
+  audio.silenceRaceAudio();
   audio.resume();
   audio.startRaceAudio();
   if (mode !== "practice") {
@@ -567,6 +568,7 @@ function startNextChampionshipRace() {
 
 function showMainMenu() {
   raceStarted = false;
+  audio.silenceRaceAudio();
   setPaused(false);
   activeMode = "quick-race";
   championship.stop();
@@ -634,12 +636,14 @@ function bindPauseMenu() {
   pauseHome.addEventListener("click", () => showMainMenu());
   pauseChangeCar.addEventListener("click", () => {
     raceStarted = false;
+    audio.silenceRaceAudio();
     document.querySelector("#hud").classList.add("is-hidden");
     setPaused(false);
     menu.showVehicleSelect();
   });
   pauseSettings.addEventListener("click", () => {
     raceStarted = false;
+    audio.silenceRaceAudio();
     document.querySelector("#hud").classList.add("is-hidden");
     setPaused(false);
     menu.showOptions();

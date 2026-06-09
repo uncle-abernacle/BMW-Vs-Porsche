@@ -106,7 +106,7 @@ export class Car {
     const lateralSpeed = this.velocity.dot(right);
     const speedMagnitude = this.velocity.length();
     const speedRatio = THREE.MathUtils.clamp(speedMagnitude / this.maxForwardSpeed, 0, 1);
-    const steeringSmoothness = THREE.MathUtils.lerp(4.8, 6.4, speedRatio);
+    const steeringSmoothness = THREE.MathUtils.lerp(4.2, 5.6, speedRatio);
     this.steerAmount = THREE.MathUtils.damp(this.steerAmount, steeringInput, steeringSmoothness, deltaTime);
 
     this.#applyDriveForces(deltaTime, {
@@ -127,11 +127,11 @@ export class Car {
 
     // Steering is strongest at arcade-racer speeds and fades at rest so the
     // vehicle does not spin like a turret before it starts moving.
-    const steerResponse = 0.14 + speedRatio * 0.68;
+    const steerResponse = 0.12 + speedRatio * 0.6;
     const reverseSteer = forwardSpeed >= -0.5 ? 1 : -1;
-    const driftYawBoost = 1 + this.driftAmount * 0.3;
+    const driftYawBoost = 1 + this.driftAmount * 0.24;
     const yawDelta = this.steerAmount * this.turnRate * steerResponse * driftYawBoost * reverseSteer * deltaTime;
-    this.group.rotation.y += THREE.MathUtils.clamp(yawDelta, -1.55 * deltaTime, 1.55 * deltaTime);
+    this.group.rotation.y += THREE.MathUtils.clamp(yawDelta, -1.38 * deltaTime, 1.38 * deltaTime);
 
     this.#limitTopSpeed();
     this.group.position.addScaledVector(this.velocity, deltaTime);
