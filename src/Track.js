@@ -95,6 +95,8 @@ export class Track {
     this.totalLaps = 3;
     this.checkpointRadius = 36;
     this.roadSurfaceOffset = 0.08;
+    this.roadThickness = 1.25;
+    this.trackClearance = 26;
     this.backgroundColor = this.definition.backgroundColor;
     this.skyColor = this.definition.skyColor;
     this.fogColor = this.definition.fogColor;
@@ -111,10 +113,7 @@ export class Track {
     this.#buildTerrain();
     this.#buildRoad();
     this.#buildRoadDetails();
-    this.#buildMountains();
-    this.#buildTunnels();
-    this.#buildCliffsAndOverlooks();
-    this.#buildAlpineScenery();
+    this.#buildTrackScenery();
     this.#buildCheckpointGates();
   }
 
@@ -191,8 +190,8 @@ export class Track {
 
     return {
       direction,
-      strength: Math.min(distanceFromRoad * 0.055, 1.05),
-      speedMultiplier: distanceFromRoad > 12 ? 0.958 : 0.978,
+      strength: Math.min(distanceFromRoad * 0.072, 0.82),
+      speedMultiplier: distanceFromRoad > 12 ? 0.975 : 0.988,
       progress: nearestInfo.t,
     };
   }
@@ -260,17 +259,13 @@ export class Track {
   }
 
   #buildTerrain() {
-    const geometry = new THREE.PlaneGeometry(620, 620, 34, 34);
+    const geometry = new THREE.PlaneGeometry(620, 620, 58, 58);
     const positions = geometry.attributes.position;
 
     for (let i = 0; i < positions.count; i += 1) {
-      const x = positions.getX(i);
-      const y = positions.getY(i);
-      const ridge =
-        Math.sin(x * 0.018) * 16 +
-        Math.cos(y * 0.016) * 14 +
-        Math.sin((x - y) * 0.012) * 9;
-      positions.setZ(i, ridge - 18);
+      const worldX = positions.getX(i) - 38;
+      const worldZ = -positions.getY(i) - 12;
+      positions.setZ(i, this.#terrainHeightAt(worldX, worldZ) + 8);
     }
 
     geometry.computeVertexNormals();
@@ -291,6 +286,7 @@ export class Track {
   }
 
   #buildRoad() {
+    const shoulderTopOffset = 0.02;
     const road = new THREE.Mesh(
       this.#createRoadGeometry(this.roadWidth),
       new THREE.MeshBasicMaterial({
@@ -312,10 +308,41 @@ export class Track {
         fog: false,
       }),
     );
-    shoulder.position.y = 0.02;
+    shoulder.position.y = shoulderTopOffset;
     shoulder.renderOrder = 3;
     shoulder.receiveShadow = true;
     this.group.add(shoulder);
+
+    const slabSideMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4b443b,
+      side: THREE.DoubleSide,
+      fog: false,
+    });
+    const slabUndersideMaterial = new THREE.MeshBasicMaterial({
+      color: 0x25282c,
+      side: THREE.DoubleSide,
+      fog: false,
+    });
+
+    for (const side of [-1, 1]) {
+      const sideWall = new THREE.Mesh(
+        this.#createRoadSideWallGeometry(this.roadWidth + 4, side, shoulderTopOffset),
+        slabSideMaterial,
+      );
+      sideWall.renderOrder = 2;
+      sideWall.castShadow = true;
+      sideWall.receiveShadow = true;
+      this.group.add(sideWall);
+    }
+
+    const underside = new THREE.Mesh(
+      this.#createRoadUndersideGeometry(this.roadWidth + 4, shoulderTopOffset),
+      slabUndersideMaterial,
+    );
+    underside.renderOrder = 1;
+    underside.castShadow = true;
+    underside.receiveShadow = true;
+    this.group.add(underside);
 
     const edgeMaterial = new THREE.MeshBasicMaterial({
       color: 0xf3d15c,
@@ -347,35 +374,24 @@ export class Track {
       const next = this.getPointOnCenterLine(t + 0.004);
       const tangent = next.sub(point).normalize();
       const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
-      const supportOffset = this.roadWidth * 0.5 + 4.2;
+      const supportOffset = this.roadWidth * 0.5 + 2.3;
       const leftSupportPoint = point.clone().addScaledVector(side, supportOffset);
       const rightSupportPoint = point.clone().addScaledVector(side, -supportOffset);
       const groundY = Math.min(
         this.#terrainHeightAt(leftSupportPoint.x, leftSupportPoint.z),
         this.#terrainHeightAt(rightSupportPoint.x, rightSupportPoint.z),
       );
-      const deckBottomY = roadY - 0.72;
+      const deckBottomY = roadY - this.roadThickness - 0.05;
       const drop = deckBottomY - groundY;
 
       if (drop < 7) {
         continue;
       }
 
-      const deckBeam = new THREE.Mesh(
-        new THREE.BoxGeometry(this.roadWidth + 10.5, 0.78, 2.4),
-        supportMaterial,
-      );
-      deckBeam.position.copy(point);
-      deckBeam.position.y = deckBottomY;
-      deckBeam.rotation.y = heading;
-      deckBeam.castShadow = true;
-      deckBeam.receiveShadow = true;
-      this.group.add(deckBeam);
-
       for (const sideSign of [-1, 1]) {
         const supportPoint = point.clone().addScaledVector(side, sideSign * supportOffset);
         const supportGroundY = this.#terrainHeightAt(supportPoint.x, supportPoint.z);
-        const supportTopY = deckBottomY - 0.38;
+        const supportTopY = deckBottomY - 0.48;
         const supportHeight = Math.max(supportTopY - supportGroundY, 1);
         const support = new THREE.Mesh(new THREE.BoxGeometry(1.8, supportHeight, 1.8), supportMaterial);
         support.position.copy(supportPoint);
@@ -383,6 +399,14 @@ export class Track {
         support.castShadow = true;
         support.receiveShadow = true;
         this.group.add(support);
+
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.5, 2.8), supportMaterial);
+        cap.position.copy(supportPoint);
+        cap.position.y = deckBottomY - 0.25;
+        cap.rotation.y = heading;
+        cap.castShadow = true;
+        cap.receiveShadow = true;
+        this.group.add(cap);
       }
     }
   }
@@ -451,6 +475,68 @@ export class Track {
     return geometry;
   }
 
+  #createRoadSideWallGeometry(width, sideSign, topOffset = this.roadSurfaceOffset) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+
+    for (let i = 0; i <= this.samples; i += 1) {
+      const t = i / this.samples;
+      const point = this.getPointOnCenterLine(t);
+      const next = this.getPointOnCenterLine(t + 1 / this.samples);
+      const tangent = next.clone().sub(point).normalize();
+      const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(sideSign);
+      const edge = point.clone().addScaledVector(side, width * 0.5);
+      const topY = edge.y + topOffset;
+      const bottomY = topY - this.roadThickness;
+
+      vertices.push(edge.x, topY, edge.z, edge.x, bottomY, edge.z);
+      normals.push(side.x, 0, side.z, side.x, 0, side.z);
+
+      if (i < this.samples) {
+        const base = i * 2;
+        indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+    geometry.setIndex(indices);
+    return geometry;
+  }
+
+  #createRoadUndersideGeometry(width, topOffset = this.roadSurfaceOffset) {
+    const vertices = [];
+    const indices = [];
+    const normals = [];
+
+    for (let i = 0; i <= this.samples; i += 1) {
+      const t = i / this.samples;
+      const point = this.getPointOnCenterLine(t);
+      const next = this.getPointOnCenterLine(t + 1 / this.samples);
+      const tangent = next.clone().sub(point).normalize();
+      const side = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+      const left = point.clone().addScaledVector(side, width * 0.5);
+      const right = point.clone().addScaledVector(side, -width * 0.5);
+      const bottomY = point.y + topOffset - this.roadThickness;
+
+      vertices.push(left.x, bottomY, left.z, right.x, bottomY, right.z);
+      normals.push(0, -1, 0, 0, -1, 0);
+
+      if (i < this.samples) {
+        const base = i * 2;
+        indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+    geometry.setIndex(indices);
+    return geometry;
+  }
+
   #buildRoadDetails() {
     const lineMaterial = new THREE.MeshBasicMaterial({
       color: 0xe9d874,
@@ -493,6 +579,103 @@ export class Track {
     }
   }
 
+  #buildTrackScenery() {
+    if (this.definition.scenery === "alpine") {
+      this.#buildMountains();
+      this.#buildTunnels();
+      this.#buildCliffsAndOverlooks();
+    } else if (this.definition.scenery === "autobahn") {
+      this.#buildAutobahnScenery();
+    } else {
+      this.#buildCountrysideScenery();
+    }
+
+    this.#buildRoadsideScenery();
+  }
+
+  #buildCountrysideScenery() {
+    const wallMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb9a16c,
+      emissive: 0x171108,
+      roughness: 0.86,
+      flatShading: true,
+    });
+    const roofMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8f3c2d,
+      emissive: 0x120504,
+      roughness: 0.9,
+      flatShading: true,
+    });
+
+    [0.08, 0.19, 0.33, 0.47, 0.61, 0.76, 0.91].forEach((t, index) => {
+      const side = index % 2 ? -1 : 1;
+      const baseOffset = side * (this.roadWidth * 0.5 + 66 + (index % 3) * 12);
+      const house = this.#groundedOrientedBox(t, baseOffset, 10 + (index % 2) * 3, 6, 12, wallMaterial, 34);
+      house.castShadow = true;
+      house.receiveShadow = true;
+      this.group.add(house);
+
+      const roof = this.#groundedOrientedBox(t, baseOffset, 12 + (index % 2) * 3, 3, 14, roofMaterial, 34);
+      roof.position.y += 5.2;
+      roof.rotation.z = side * 0.08;
+      roof.castShadow = true;
+      this.group.add(roof);
+    });
+  }
+
+  #buildAutobahnScenery() {
+    const concreteMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8c8b7f,
+      emissive: 0x11100d,
+      roughness: 0.9,
+      flatShading: true,
+    });
+    const signMaterial = new THREE.MeshStandardMaterial({
+      color: 0x246c9c,
+      emissive: 0x061321,
+      roughness: 0.58,
+      flatShading: true,
+    });
+
+    [0.16, 0.42, 0.68].forEach((t) => {
+      const point = this.getPointOnCenterLine(t);
+      const heading = this.#getHeadingAt(t);
+      const supportOffsets = [-1, 1].map((direction) =>
+        this.#clearedLateralOffset(t, direction * (this.roadWidth * 0.5 + 18), 3, 18),
+      );
+      const deckY = point.y + this.roadSurfaceOffset + 10.5;
+
+      for (const supportOffset of supportOffsets) {
+        const supportPoint = this.#offsetPoint(t, supportOffset);
+        const groundY = this.#terrainHeightAt(supportPoint.x, supportPoint.z);
+        const supportHeight = Math.max(deckY - groundY, 6);
+        const support = new THREE.Mesh(new THREE.BoxGeometry(2.2, supportHeight, 2.2), concreteMaterial);
+        support.position.copy(supportPoint);
+        support.position.y = groundY + supportHeight * 0.5;
+        support.castShadow = true;
+        support.receiveShadow = true;
+        this.group.add(support);
+      }
+
+      const deckWidth = Math.max(this.roadWidth + 34, Math.abs(supportOffsets[1] - supportOffsets[0]) + 5);
+      const deck = new THREE.Mesh(new THREE.BoxGeometry(deckWidth, 1.4, 7.5), concreteMaterial);
+      deck.position.copy(point);
+      deck.position.y = deckY;
+      deck.rotation.y = heading;
+      deck.castShadow = true;
+      deck.receiveShadow = true;
+      this.group.add(deck);
+    });
+
+    [0.1, 0.28, 0.5, 0.72, 0.88].forEach((t, index) => {
+      const side = index % 2 ? -1 : 1;
+      const sign = this.#groundedOrientedBox(t, side * (this.roadWidth * 0.5 + 18), 7, 3.4, 0.6, signMaterial, 12);
+      sign.position.y += 4.3;
+      sign.castShadow = true;
+      this.group.add(sign);
+    });
+  }
+
   #buildMountains() {
     const rockMaterials = [
       new THREE.MeshStandardMaterial({ color: 0x6d7773, emissive: 0x0d1110, roughness: 1, flatShading: true }),
@@ -508,9 +691,14 @@ export class Track {
 
     for (let i = 0; i < 20; i += 1) {
       const angle = (i / 20) * Math.PI * 2;
-      const radius = 230 + (i % 4) * 28;
-      const x = Math.sin(angle) * radius - 36;
-      const z = Math.cos(angle) * radius - 12;
+      let radius = 230 + (i % 4) * 28;
+      let x = Math.sin(angle) * radius - 36;
+      let z = Math.cos(angle) * radius - 12;
+      if (this.#flatRoadClearance(x, z) < 54) {
+        radius += 86;
+        x = Math.sin(angle) * radius - 36;
+        z = Math.cos(angle) * radius - 12;
+      }
       const height = 66 + (i % 5) * 18;
       const mountain = new THREE.Mesh(
         new THREE.ConeGeometry(42 + (i % 3) * 12, height, 6),
@@ -538,17 +726,14 @@ export class Track {
       roughness: 0.92,
       flatShading: true,
     });
-    const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x10141a, emissive: 0x020304, roughness: 0.95 });
-
     [0.21, 0.71].forEach((t, index) => {
       const point = this.getPointOnCenterLine(t);
       const heading = this.#getHeadingAt(t);
       const portal = new THREE.Group();
-      const side = new THREE.Vector3(Math.cos(heading), 0, -Math.sin(heading));
       const clearOffset = this.roadWidth * 0.5 + 7.5;
 
       for (const sideSign of [-1, 1]) {
-        const columnPoint = point.clone().addScaledVector(side, sideSign * clearOffset);
+        const columnPoint = this.#offsetPoint(t, this.#clearedLateralOffset(t, sideSign * clearOffset, 4, 18));
         const columnGroundY = Math.min(this.#terrainHeightAt(columnPoint.x, columnPoint.z), point.y);
         const columnTopY = point.y + 17;
         const columnHeight = Math.max(columnTopY - columnGroundY, 8);
@@ -568,12 +753,6 @@ export class Track {
       beam.rotation.y = heading;
       beam.castShadow = true;
       portal.add(beam);
-
-      const shadowPanel = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 8, 2.2, 12.2), darkMaterial);
-      shadowPanel.position.copy(point);
-      shadowPanel.position.y += 13.7;
-      shadowPanel.rotation.y = heading;
-      portal.add(shadowPanel);
 
       const roof = new THREE.Mesh(new THREE.ConeGeometry(26, 24, 6), tunnelMaterial);
       roof.position.copy(point);
@@ -606,9 +785,14 @@ export class Track {
       const side = Math.sin(t * Math.PI * 6) > 0 ? 1 : -1;
       const cliffOffset = this.roadWidth * 0.5 + 42 + (i % 4) * 3;
       const cliffHeight = 24 + (i % 5) * 7;
-      const cliff = this.#orientedBox(t, side * cliffOffset, 18 + (i % 3) * 5, cliffHeight, 16, cliffMaterial);
-      cliff.position.y = this.#terrainHeightAt(cliff.position.x, cliff.position.z) + cliffHeight * 0.5 - 1.2;
-      cliff.rotation.y += (i % 3) * 0.2;
+      const cliff = this.#groundedRock(
+        t,
+        side * cliffOffset,
+        13 + (i % 3) * 4,
+        cliffHeight,
+        cliffMaterial,
+        34,
+      );
       cliff.castShadow = true;
       cliff.receiveShadow = true;
       this.group.add(cliff);
@@ -617,20 +801,20 @@ export class Track {
 
     [0.34, 0.56, 0.86].forEach((t, index) => {
       const side = index % 2 ? -1 : 1;
-      const deck = this.#orientedBox(t, side * (this.roadWidth * 0.5 + 34), 24, 1.2, 12, overlookMaterial);
-      deck.position.y = this.#terrainHeightAt(deck.position.x, deck.position.z) + 1.2;
+      const deck = this.#groundedOrientedBox(t, side * (this.roadWidth * 0.5 + 42), 24, 1.2, 12, overlookMaterial, 34);
+      deck.position.y += 0.6;
       deck.castShadow = true;
       deck.receiveShadow = true;
       this.group.add(deck);
 
-      const rail = this.#orientedBox(t, side * (this.roadWidth * 0.5 + 42), 24, 2, 1.2, overlookMaterial);
-      rail.position.y = this.#terrainHeightAt(rail.position.x, rail.position.z) + 3.1;
+      const rail = this.#groundedOrientedBox(t, side * (this.roadWidth * 0.5 + 50), 24, 2, 1.2, overlookMaterial, 40);
+      rail.position.y += 2.1;
       rail.castShadow = true;
       this.group.add(rail);
     });
   }
 
-  #buildAlpineScenery() {
+  #buildRoadsideScenery() {
     const trunk = new THREE.MeshStandardMaterial({ color: 0x684323, roughness: 0.9 });
     const leaves = new THREE.MeshStandardMaterial({
       color: 0x2f4d3a,
@@ -643,13 +827,13 @@ export class Track {
     for (let i = 0; i < 80; i += 1) {
       const t = i / 80;
       const side = i % 2 ? -1 : 1;
-      const point = this.#offsetPoint(t, side * (44 + (i % 5) * 8));
+      const point = this.#offsetPoint(t, this.#clearedLateralOffset(t, side * (44 + (i % 5) * 8), 8, 22));
       this.#addPine(point.x, point.z, trunk, leaves);
     }
 
     [0.1, 0.3, 0.48, 0.62, 0.82].forEach((t) => {
-      const sign = this.#orientedBox(t, this.roadWidth * 0.5 + 7.5, 5, 3.2, 0.5, signMaterial);
-      sign.position.y = this.#terrainHeightAt(sign.position.x, sign.position.z) + 5.1;
+      const sign = this.#groundedOrientedBox(t, this.roadWidth * 0.5 + 18, 5, 3.2, 0.5, signMaterial, 16);
+      sign.position.y += 2.8;
       sign.rotation.y += Math.PI / 2;
       sign.castShadow = true;
       this.group.add(sign);
@@ -702,6 +886,46 @@ export class Track {
     box.position.y += height * 0.5;
     box.rotation.y = this.#getHeadingAt(t);
     return box;
+  }
+
+  #groundedOrientedBox(t, lateralOffset, width, height, depth, material, minClearance = this.trackClearance) {
+    const safeOffset = this.#clearedLateralOffset(t, lateralOffset, width, minClearance);
+    const box = this.#orientedBox(t, safeOffset, width, height, depth, material);
+    box.position.y = this.#terrainHeightAt(box.position.x, box.position.z) + height * 0.5;
+    return box;
+  }
+
+  #groundedRock(t, lateralOffset, radius, height, material, minClearance = this.trackClearance) {
+    const safeOffset = this.#clearedLateralOffset(t, lateralOffset, radius * 2, minClearance);
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), material);
+    rock.position.copy(this.#offsetPoint(t, safeOffset));
+    rock.position.y = this.#terrainHeightAt(rock.position.x, rock.position.z) + height * 0.5;
+    rock.scale.set(radius * 0.9, height * 0.5, radius);
+    rock.rotation.set(0.08, this.#getHeadingAt(t) + radius * 0.03, -0.06);
+    return rock;
+  }
+
+  #safeLateralOffset(lateralOffset, objectWidth = 0, minClearance = this.trackClearance) {
+    const direction = lateralOffset < 0 ? -1 : 1;
+    const minimumOffset = this.roadWidth * 0.5 + minClearance + objectWidth * 0.5;
+    return direction * Math.max(Math.abs(lateralOffset), minimumOffset);
+  }
+
+  #clearedLateralOffset(t, lateralOffset, objectWidth = 0, minClearance = this.trackClearance) {
+    const direction = lateralOffset < 0 ? -1 : 1;
+    const requiredClearance = minClearance + objectWidth * 0.5;
+    let offset = this.#safeLateralOffset(lateralOffset, objectWidth, minClearance);
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const point = this.#offsetPoint(t, offset);
+      if (this.#flatRoadClearance(point.x, point.z) >= requiredClearance) {
+        return offset;
+      }
+
+      offset += direction * (8 + attempt * 4);
+    }
+
+    return offset;
   }
 
   #offsetPoint(t, lateralOffset) {
@@ -761,6 +985,29 @@ export class Track {
   }
 
   #terrainHeightAt(x, z) {
+    const baseHeight = this.#baseTerrainHeightAt(x, z);
+    const corridorWidth = this.roadWidth * 0.5 + this.trackClearance;
+    let flatDistance = Infinity;
+    let roadBottomY = Infinity;
+
+    for (let i = 0; i < this.centerLinePoints.length; i += 1) {
+      const point = this.centerLinePoints[i];
+      const distance = this.#flatDistance({ x, z }, point);
+      flatDistance = Math.min(flatDistance, distance);
+
+      if (distance < corridorWidth) {
+        roadBottomY = Math.min(roadBottomY, point.y + this.roadSurfaceOffset - this.roadThickness - 2.6);
+      }
+    }
+
+    if (flatDistance < corridorWidth && Number.isFinite(roadBottomY)) {
+      return Math.min(baseHeight, roadBottomY);
+    }
+
+    return baseHeight;
+  }
+
+  #baseTerrainHeightAt(x, z) {
     const localX = x + 38;
     const localZ = z + 12;
     const ridge =
@@ -780,6 +1027,18 @@ export class Track {
     const dx = a.x - b.x;
     const dz = a.z - b.z;
     return Math.sqrt(dx * dx + dz * dz);
+  }
+
+  #flatRoadClearance(x, z) {
+    let nearestDistanceSq = Infinity;
+
+    for (const point of this.centerLinePoints) {
+      const dx = x - point.x;
+      const dz = z - point.z;
+      nearestDistanceSq = Math.min(nearestDistanceSq, dx * dx + dz * dz);
+    }
+
+    return Math.sqrt(nearestDistanceSq) - this.roadWidth * 0.5;
   }
 
   #wrappedProgressDistance(a, b) {

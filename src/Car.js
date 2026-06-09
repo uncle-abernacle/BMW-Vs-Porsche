@@ -256,7 +256,16 @@ export class Car {
     // Rather than hard-stopping outside the starter road, ease the player back
     // toward the nearest legal surface and scrub some speed. This feels like
     // grass or gravel runoff without needing collision meshes yet.
-    this.group.position.add(correction.direction.multiplyScalar(correction.strength));
+    const inward = correction.direction.clone();
+    this.group.position.addScaledVector(inward, correction.strength);
+
+    const outward = inward.clone().multiplyScalar(-1);
+    const outwardSpeed = this.velocity.dot(outward);
+
+    if (outwardSpeed > 0) {
+      this.velocity.addScaledVector(outward, -outwardSpeed * 0.86);
+    }
+
     this.velocity.multiplyScalar(correction.speedMultiplier);
     this.speed = this.velocity.dot(this.#getForwardVector());
     this.lastSurfaceCorrectionStrength = correction.strength;
@@ -331,6 +340,15 @@ export class Car {
       roughness: 0.48,
       metalness: 0.16,
     });
+    const decalMaterial = new THREE.MeshStandardMaterial({
+      color: stripeColor,
+      emissive: new THREE.Color(stripeColor).multiplyScalar(0.05),
+      roughness: 0.46,
+      metalness: 0.18,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    });
     const glassMaterial = new THREE.MeshStandardMaterial({
       color: 0x111d26,
       emissive: 0x071119,
@@ -362,6 +380,9 @@ export class Car {
       transparent: true,
       opacity: 0.24,
       depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
 
     const { width, length, height, cabinWidth, cabinLength, cabinHeight, cabinOffsetZ, spoilerWidth } =
@@ -381,11 +402,12 @@ export class Car {
     this.group.add(cabin);
 
     const hoodStripe = new THREE.Mesh(
-      new THREE.BoxGeometry(Math.max(width * 0.11, 0.36), 0.03, length * 0.9),
-      stripeMaterial,
+      new THREE.BoxGeometry(Math.max(width * 0.11, 0.36), 0.028, length * 0.84),
+      decalMaterial,
     );
-    hoodStripe.position.set(0, lowerBody.position.y + height * 0.53, -0.2);
+    hoodStripe.position.set(0, lowerBody.position.y + height * 0.59, -0.28);
     hoodStripe.castShadow = true;
+    hoodStripe.renderOrder = 8;
     this.group.add(hoodStripe);
 
     const spoiler = new THREE.Mesh(new THREE.BoxGeometry(spoilerWidth, 0.18, 0.45), stripeMaterial);
@@ -410,15 +432,19 @@ export class Car {
     this.group.add(tailLightRight);
 
     const reflectionStrip = new THREE.Mesh(
-      new THREE.BoxGeometry(width * 0.82, 0.035, length * 0.18),
+      new THREE.BoxGeometry(width * 0.72, 0.028, length * 0.14),
       new THREE.MeshStandardMaterial({
         color: 0xd6efff,
         emissive: 0x375166,
         roughness: 0.18,
         metalness: 0.22,
+        polygonOffset: true,
+        polygonOffsetFactor: -4,
+        polygonOffsetUnits: -4,
       }),
     );
-    reflectionStrip.position.set(0, lowerBody.position.y + height * 0.55, -length * 0.22);
+    reflectionStrip.position.set(0, lowerBody.position.y + height * 0.62, -length * 0.22);
+    reflectionStrip.renderOrder = 9;
     this.group.add(reflectionStrip);
 
     const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(width * 0.92, 0.22, 0.28), stripeMaterial);
@@ -432,8 +458,8 @@ export class Car {
     this.group.add(rearBumper);
 
     for (const side of [-1, 1]) {
-      const sideSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, length * 0.72), stripeMaterial);
-      sideSkirt.position.set(side * width * 0.54, lowerBody.position.y - height * 0.18, 0.05);
+      const sideSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, length * 0.34), stripeMaterial);
+      sideSkirt.position.set(side * width * 0.57, lowerBody.position.y - height * 0.2, 0.02);
       sideSkirt.castShadow = true;
       this.group.add(sideSkirt);
 
@@ -459,10 +485,11 @@ export class Car {
     const shadowBlob = new THREE.Mesh(new THREE.CircleGeometry(Math.max(width, length) * 0.62, 18), shadowMaterial);
     shadowBlob.rotation.x = -Math.PI / 2;
     shadowBlob.scale.z = 0.58;
-    shadowBlob.position.y = 0.035;
+    shadowBlob.position.y = 0.07;
+    shadowBlob.renderOrder = -1;
     this.group.add(shadowBlob);
 
-    const wheelX = width * 0.52;
+    const wheelX = width * 0.48;
     const wheelZ = length * 0.33;
     this.#addWheel(-wheelX, 0.55, -wheelZ, tireMaterial, rimMaterial);
     this.#addWheel(wheelX, 0.55, -wheelZ, tireMaterial, rimMaterial);
