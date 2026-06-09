@@ -57,21 +57,17 @@ export const TRACK_OPTIONS = [
     fogNear: 62,
     fogFar: 345,
     controlPoints: [
-      [-18, 0, 132],
-      [-12, 0, 42],
-      [70, 0, -38],
-      [28, 0, -118],
-      [-82, 0, -92],
-      [-142, 0, -10],
-      [-92, 0, 72],
-      [44, 0, 92],
-      [142, 0, 36],
-      [124, 0, -78],
-      [24, 0, -168],
-      [-126, 0, -154],
-      [-210, 0, -46],
-      [-164, 0, 104],
-      [-62, 0, 172],
+      [-164, 0, 146],
+      [-68, 0, 174],
+      [58, 0, 142],
+      [142, 0, 70],
+      [112, 0, -10],
+      [166, 0, -76],
+      [72, 0, -158],
+      [-48, 0, -176],
+      [-150, 0, -118],
+      [-208, 0, -26],
+      [-178, 0, 64],
     ],
   },
 ];
@@ -624,12 +620,6 @@ export class Track {
   }
 
   #buildAutobahnScenery() {
-    const concreteMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8c8b7f,
-      emissive: 0x11100d,
-      roughness: 0.9,
-      flatShading: true,
-    });
     const signMaterial = new THREE.MeshStandardMaterial({
       color: 0x246c9c,
       emissive: 0x061321,
@@ -640,36 +630,6 @@ export class Track {
       color: 0x6e6b60,
       roughness: 0.88,
       flatShading: true,
-    });
-
-    [0.16, 0.42, 0.68].forEach((t) => {
-      const point = this.getPointOnCenterLine(t);
-      const heading = this.#getHeadingAt(t);
-      const supportOffsets = [-1, 1].map((direction) =>
-        this.#clearedLateralOffset(t, direction * (this.roadWidth * 0.5 + 18), 3, 18),
-      );
-      const deckY = point.y + this.roadSurfaceOffset + 10.5;
-
-      for (const supportOffset of supportOffsets) {
-        const supportPoint = this.#offsetPoint(t, supportOffset);
-        const groundY = this.#terrainHeightAt(supportPoint.x, supportPoint.z);
-        const supportHeight = Math.max(deckY - groundY, 6);
-        const support = new THREE.Mesh(new THREE.BoxGeometry(2.2, supportHeight, 2.2), concreteMaterial);
-        support.position.copy(supportPoint);
-        support.position.y = groundY + supportHeight * 0.5;
-        support.castShadow = true;
-        support.receiveShadow = true;
-        this.group.add(support);
-      }
-
-      const deckWidth = Math.max(this.roadWidth + 34, Math.abs(supportOffsets[1] - supportOffsets[0]) + 5);
-      const deck = new THREE.Mesh(new THREE.BoxGeometry(deckWidth, 1.4, 7.5), concreteMaterial);
-      deck.position.copy(point);
-      deck.position.y = deckY;
-      deck.rotation.y = heading;
-      deck.castShadow = true;
-      deck.receiveShadow = true;
-      this.group.add(deck);
     });
 
     [0.1, 0.28, 0.5, 0.72, 0.88].forEach((t, index) => {
@@ -752,21 +712,6 @@ export class Track {
         portal.add(column);
         this.cameraCollisionObjects.push(column);
       }
-
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(this.roadWidth + 20, 4.5, 12), tunnelMaterial);
-      beam.position.copy(point);
-      beam.position.y += 17.2;
-      beam.rotation.y = heading;
-      beam.castShadow = true;
-      portal.add(beam);
-
-      const roof = new THREE.Mesh(new THREE.ConeGeometry(26, 24, 6), tunnelMaterial);
-      roof.position.copy(point);
-      roof.position.y += 20;
-      roof.rotation.y = heading;
-      roof.scale.z = 0.45;
-      roof.castShadow = true;
-      portal.add(roof);
 
       portal.name = `Tunnel ${index + 1}`;
       this.group.add(portal);

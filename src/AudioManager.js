@@ -10,6 +10,7 @@ export class AudioManager {
     this.engineFilter = null;
     this.engineRumble = null;
     this.enginePanner = null;
+    this.countdownTimers = [];
     this.initialized = false;
     this.muted = false;
     this.paused = false;
@@ -49,7 +50,20 @@ export class AudioManager {
 
     if (paused) {
       this.#silenceLiveLoops();
+    } else {
+      this.#applyVolumes();
     }
+  }
+
+  startRaceAudio() {
+    this.#ensureContext();
+    this.paused = false;
+
+    if (!this.engineLoopGain || this.engineVoices.length === 0) {
+      this.#createEngineLoop();
+    }
+
+    this.#applyVolumes();
   }
 
   silenceRaceAudio() {
@@ -57,7 +71,10 @@ export class AudioManager {
       return;
     }
 
+    this.paused = true;
+    this.#clearCountdownTimers();
     this.#silenceLiveLoops();
+    this.#stopEngineLoop();
   }
 
   playMenuMove() {
@@ -69,14 +86,18 @@ export class AudioManager {
   }
 
   playCountdown() {
+    this.#clearCountdownTimers();
+
     [0, 650, 1300].forEach((delay) => {
-      window.setTimeout(() => {
+      const timer = window.setTimeout(() => {
         this.#playTone({ frequency: 520, duration: 0.16, gain: 0.28, destination: this.sfxGain });
       }, delay);
+      this.countdownTimers.push(timer);
     });
-    window.setTimeout(() => {
+    const finalTimer = window.setTimeout(() => {
       this.#playTone({ frequency: 880, duration: 0.35, gain: 0.34, destination: this.sfxGain });
     }, 1950);
+    this.countdownTimers.push(finalTimer);
   }
 
   playCollision(position, intensity = 1) {
@@ -188,6 +209,10 @@ export class AudioManager {
       return;
     }
 
+    if (!this.engineLoopGain || this.engineVoices.length === 0) {
+      this.#createEngineLoop();
+    }
+
     const profile = player.engineProfile ?? {};
     const speedRatio = Math.min(Math.abs(player.speed) / player.maxForwardSpeed, 1);
     const load = controls?.throttle ? 1 : controls?.brakeReverse ? 0.45 : 0.26;
@@ -234,6 +259,10 @@ export class AudioManager {
 
   #playTone({ frequency, duration, gain, destination }) {
     this.#ensureContext();
+
+    if (destination === this.sfxGain && this.paused) {
+      return;
+    }
 
     const now = this.context.currentTime;
     const oscillator = this.context.createOscillator();
@@ -295,8 +324,49 @@ export class AudioManager {
 
   #silenceLiveLoops() {
     const now = this.context.currentTime;
-    this.engineLoopGain?.gain.setTargetAtTime(0.0001, now, 0.025);
-    this.engineRumble?.gain.gain.setTargetAtTime(0.0001, now, 0.025);
+    this.engineLoopGain?.gain.cancelScheduledValues(now);
+    this.engineLoopGain?.gain.setValueAtTime(0, now);
+    this.engineRumble?.gain.gain.cancelScheduledValues(now);
+    this.engineRumble?.gain.gain.setValueAtTime(0, now);
+    this.sfxGain?.gain.cancelScheduledValues(now);
+    this.sfxGain?.gain.setValueAtTime(0, now);
+  }
+
+  #stopEngineLoop() {
+    for (const voice of this.engineVoices) {
+      try {
+        voice.oscillator.stop();
+      } catch {
+        // Oscillators may already be stopped if race cleanup runs twice.
+      }
+      voice.oscillator.disconnect();
+      voice.gainNode.disconnect();
+    }
+
+    if (this.engineRumble) {
+      try {
+        this.engineRumble.oscillator.stop();
+      } catch {
+        // Same double-cleanup guard as above.
+      }
+      this.engineRumble.oscillator.disconnect();
+      this.engineRumble.gain.disconnect();
+    }
+
+    this.engineLoopGain?.disconnect();
+    this.engineFilter?.disconnect();
+    this.engineVoices = [];
+    this.engineLoopGain = null;
+    this.engineFilter = null;
+    this.engineRumble = null;
+  }
+
+  #clearCountdownTimers() {
+    for (const timer of this.countdownTimers) {
+      window.clearTimeout(timer);
+    }
+
+    this.countdownTimers = [];
   }
 
   #applyVolumes() {

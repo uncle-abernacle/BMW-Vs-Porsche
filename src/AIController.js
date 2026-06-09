@@ -155,7 +155,15 @@ export class AIController {
     }
 
     if (this.stuckTimer > this.settings.recoverySeconds) {
-      this.reset(progress + 0.02, this.baseLaneOffset);
+      const recoveryProgress = progress + 0.014;
+      const target = this.#getOffsetTrackPoint(recoveryProgress, this.baseLaneOffset);
+      const heading = this.#getHeadingAt(recoveryProgress);
+
+      this.car.group.position.lerp(target, 0.16);
+      this.car.group.rotation.y = THREE.MathUtils.damp(this.car.group.rotation.y, heading, 8, deltaTime);
+      this.car.velocity.multiplyScalar(0.32);
+      this.car.trackProgress = THREE.MathUtils.euclideanModulo(recoveryProgress, 1);
+      this.stuckTimer = this.settings.recoverySeconds * 0.45;
     }
 
     this.previousPosition.copy(this.car.group.position);

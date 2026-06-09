@@ -182,6 +182,7 @@ function resetRace() {
 
 function startRace(vehicle, mode = activeMode, trackId = selectedTrackId) {
   audio.resume();
+  audio.startRaceAudio();
   if (mode !== "practice") {
     audio.playCountdown();
   }
@@ -528,6 +529,8 @@ function showSingleRaceResults() {
 }
 
 function startNextChampionshipRace() {
+  audio.startRaceAudio();
+  audio.playCountdown();
   raceStarted = true;
   document.querySelector("#hud").classList.remove("is-hidden");
   resetRace();
