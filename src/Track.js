@@ -666,8 +666,9 @@ export class Track {
         z = Math.cos(angle) * radius - 12;
       }
       const height = 66 + (i % 5) * 18;
+      const mountainRadius = 42 + (i % 3) * 12;
       const mountain = new THREE.Mesh(
-        new THREE.ConeGeometry(42 + (i % 3) * 12, height, 6),
+        new THREE.ConeGeometry(mountainRadius, height, 6),
         rockMaterials[i % rockMaterials.length],
       );
       const groundY = this.#terrainHeightAt(x, z);
@@ -677,8 +678,11 @@ export class Track {
       mountain.castShadow = false;
       this.group.add(mountain);
 
-      const snow = new THREE.Mesh(new THREE.ConeGeometry(15 + (i % 3) * 4, height * 0.22, 6), snowMaterial);
-      snow.position.set(x, groundY + height * 0.72 + 6, z);
+      const snowHeight = height * 0.24;
+      const snowRadius = mountainRadius * (snowHeight / height) * 0.98;
+      const mountainTopY = mountain.position.y + height * 0.5;
+      const snow = new THREE.Mesh(new THREE.ConeGeometry(snowRadius, snowHeight, 6), snowMaterial);
+      snow.position.set(x, mountainTopY - snowHeight * 0.5 + 0.08, z);
       snow.scale.z = 0.72;
       snow.rotation.y = mountain.rotation.y;
       this.group.add(snow);

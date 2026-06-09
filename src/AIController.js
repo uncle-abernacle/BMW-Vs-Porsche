@@ -58,9 +58,10 @@ export class AIController {
     const progress = this.track.getProgressAtPosition(this.car.group.position, this.car.trackProgress);
     const traffic = this.#calculateTraffic(nearbyCars);
     const speedRatio = THREE.MathUtils.clamp(Math.abs(this.car.speed) / this.car.maxForwardSpeed, 0, 1);
-    const lookAhead = this.settings.lookAhead + speedRatio * 0.026;
+    const roadTightness = THREE.MathUtils.clamp((18 - this.track.roadWidth) / 8, 0, 1);
+    const lookAhead = (this.settings.lookAhead + speedRatio * 0.02) * THREE.MathUtils.lerp(1, 0.68, roadTightness);
     const laneLimit = this.#getUsableLaneLimit();
-    const safeLaneLimit = laneLimit * 0.72;
+    const safeLaneLimit = laneLimit * THREE.MathUtils.lerp(0.6, 0.42, roadTightness);
     const laneInfo = this.#getLaneInfo(this.car.group.position, progress);
     const edgeRatio = Math.abs(laneInfo.offset) / Math.max(laneLimit, 0.001);
 
@@ -77,26 +78,30 @@ export class AIController {
       safeLaneLimit,
     );
 
-    if (edgeRatio > 0.48) {
-      const recoveryStrength = THREE.MathUtils.clamp((edgeRatio - 0.48) / 0.34, 0, 1);
+    if (edgeRatio > 0.36) {
+      const recoveryStrength = THREE.MathUtils.clamp((edgeRatio - 0.36) / 0.34, 0, 1);
       targetLaneOffset = THREE.MathUtils.lerp(targetLaneOffset, 0, recoveryStrength);
+    }
+
+    if (edgeRatio > 0.62) {
+      this.overtakeOffset = THREE.MathUtils.damp(this.overtakeOffset, 0, 7, deltaTime);
     }
 
     const target = this.#getOffsetTrackPoint(progress + lookAhead, targetLaneOffset);
     const steeringError = this.#getSteeringError(target);
-    const edgeSpeedMultiplier = edgeRatio > 0.6 ? THREE.MathUtils.lerp(1, 0.48, Math.min((edgeRatio - 0.6) / 0.3, 1)) : 1;
-    const steeringSpeedMultiplier = Math.abs(steeringError) > 0.5 ? THREE.MathUtils.lerp(1, 0.68, Math.min(Math.abs(steeringError), 1)) : 1;
+    const edgeSpeedMultiplier = edgeRatio > 0.48 ? THREE.MathUtils.lerp(1, 0.36, Math.min((edgeRatio - 0.48) / 0.34, 1)) : 1;
+    const steeringSpeedMultiplier = Math.abs(steeringError) > 0.42 ? THREE.MathUtils.lerp(1, 0.62, Math.min(Math.abs(steeringError), 1)) : 1;
     const desiredSpeed = this.settings.targetSpeed * traffic.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier;
     const shouldBrake =
       (this.car.speed > desiredSpeed + 3 && this.car.speed > 8) ||
-      (Math.abs(steeringError) > 0.88 && this.car.speed > desiredSpeed * 0.78) ||
-      edgeRatio > 0.84;
+      (Math.abs(steeringError) > 0.82 && this.car.speed > desiredSpeed * 0.72) ||
+      (edgeRatio > 0.78 && this.car.speed > 7);
     const canBrakeWithoutReversing = this.car.speed > 5.5;
 
     this.currentControls = {
       throttle:
         this.car.speed < desiredSpeed &&
-        edgeRatio < 0.9,
+        edgeRatio < 0.82,
       brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
       steerLeft: steeringError > 0.08,
@@ -117,6 +122,7 @@ export class AIController {
   #calculateTraffic(nearbyCars) {
     let laneShift = 0;
     let speedMultiplier = 1;
+    const passRoom = THREE.MathUtils.clamp((this.track.roadWidth - 14) / 12, 0, 1);
     const forward = this.#getForwardVector();
     const right = this.#getRightVector();
 
@@ -135,7 +141,7 @@ export class AIController {
       }
 
       const passDirection = sideDistance >= 0 ? -1 : 1;
-      laneShift += passDirection * THREE.MathUtils.lerp(0.12, 0.5, this.settings.aggression);
+      laneShift += passDirection * THREE.MathUtils.lerp(0.08, 0.42, this.settings.aggression) * passRoom;
 
       if (isSameLaneTraffic) {
         speedMultiplier = Math.min(speedMultiplier, THREE.MathUtils.clamp(forwardDistance / 14, 0.82, 0.98));
@@ -143,7 +149,7 @@ export class AIController {
     }
 
     return {
-      laneShift: THREE.MathUtils.clamp(laneShift, -0.75, 0.75),
+      laneShift: THREE.MathUtils.clamp(laneShift, -0.45, 0.45),
       speedMultiplier,
     };
   }
@@ -220,7 +226,7 @@ export class AIController {
   #getUsableLaneLimit() {
     const halfRoad = this.track.roadWidth * 0.5;
     const carHalfWidth = this.car.design.width * 0.58;
-    return Math.max(1.5, halfRoad - carHalfWidth - 1.65);
+    return Math.max(1.35, halfRoad - carHalfWidth - 2.35);
   }
 
   #clampLaneOffset(laneOffset) {

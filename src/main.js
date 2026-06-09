@@ -244,7 +244,7 @@ function createAiRacers(playerVehicleId, mode = activeMode) {
     const car = new Car({
       ...vehicle,
       name: vehicle.shortName,
-      startPosition: track.getPointOnCenterLine(startProgress),
+      startPosition: getAiGridPosition(index),
       startRotation: track.startRotation,
       isPlayer: false,
     });
@@ -275,14 +275,27 @@ function resetAiRacers() {
 }
 
 function getAiStartProgress(index) {
-  const row = Math.floor(index / 3);
-  const columnStagger = (index % 3) * 0.004;
-  return 0.022 + row * 0.018 + columnStagger;
+  const row = Math.floor(index / 2);
+  const columnStagger = (index % 2) * 0.014;
+  return 0.03 + row * 0.038 + columnStagger;
 }
 
 function getAiLaneOffset(index) {
-  const gridLaneWidth = Math.min(2.2, track.roadWidth * 0.13);
-  return [-gridLaneWidth, 0, gridLaneWidth][index % 3];
+  const gridLaneWidth = Math.min(3, track.roadWidth * 0.2);
+  return index % 2 === 0 ? -gridLaneWidth : gridLaneWidth;
+}
+
+function getAiGridPosition(index) {
+  const progress = getAiStartProgress(index);
+  const laneOffset = getAiLaneOffset(index);
+  const point = track.getPointOnCenterLine(progress);
+  const next = track.getPointOnCenterLine(progress + 0.004);
+  const tangent = next.sub(point).normalize();
+  const side = new THREE.Vector3(-tangent.z, 0, tangent.x);
+
+  point.addScaledVector(side, laneOffset);
+  point.y = track.getRoadHeightAtPosition(point, progress);
+  return point;
 }
 
 function updateRaceProgress(deltaTime) {
