@@ -92,7 +92,7 @@ export class AudioManager {
   playCountdown() {
     this.#clearCountdownTimers();
 
-    [0, 650, 1300].forEach((delay) => {
+    [0, 1000, 2000].forEach((delay) => {
       const timer = window.setTimeout(() => {
         this.#playTone({ frequency: 520, duration: 0.16, gain: 0.28, destination: this.sfxGain });
       }, delay);
@@ -100,7 +100,7 @@ export class AudioManager {
     });
     const finalTimer = window.setTimeout(() => {
       this.#playTone({ frequency: 880, duration: 0.35, gain: 0.34, destination: this.sfxGain });
-    }, 1950);
+    }, 3000);
     this.countdownTimers.push(finalTimer);
   }
 

@@ -69,7 +69,8 @@ const championship = new ChampionshipManager();
 const TOTAL_RACE_CARS = 10;
 const AI_RACER_COUNT = TOTAL_RACE_CARS - 1;
 const AI_DIFFICULTY_SEQUENCE = ["Easy", "Medium", "Hard", "Medium", "Hard", "Easy", "Medium", "Hard", "Medium"];
-const FINISH_WAIT_LIMIT = 75;
+const COUNTDOWN_DURATION = 3;
+const RACE_POINTS = [10, 8, 6, 4, 2, 1];
 const EMPTY_CONTROLS = Object.freeze({
   throttle: false,
   brakeReverse: false,
@@ -89,6 +90,8 @@ const championshipStandings = document.querySelector("#championship-standings");
 const championshipContinue = document.querySelector("#championship-continue");
 const trophyCeremony = document.querySelector("#trophy-ceremony");
 const championName = document.querySelector("#champion-name");
+const countdownOverlay = document.querySelector("#countdown-overlay");
+const countdownReadout = document.querySelector("#countdown-readout");
 const pauseMenu = document.querySelector("#pause-menu");
 const pauseResume = document.querySelector("#pause-resume");
 const pauseHome = document.querySelector("#pause-home");
@@ -105,8 +108,10 @@ let lapState = null;
 let activeMode = "quick-race";
 let playerVehicle = null;
 let raceFinished = false;
+let resultsVisible = false;
 let playerFinishTime = null;
-let finishWaitStartedAt = null;
+let postFinishPlayerController = null;
+let postFinishCameraTime = 0;
 let paused = false;
 let selectedTrackId = "alpine-pass";
 let raceCountdownRemaining = 0;
@@ -192,9 +197,13 @@ function resetRace() {
   resetLapTiming();
   lapState = track.createLapState(activeMode === "practice" ? 0 : track.totalLaps);
   raceFinished = false;
+  resultsVisible = false;
   playerFinishTime = null;
-  finishWaitStartedAt = null;
-  raceCountdownRemaining = activeMode === "practice" ? 0 : 2.1;
+  postFinishPlayerController = null;
+  postFinishCameraTime = 0;
+  raceCountdownRemaining = activeMode === "practice" ? 0 : COUNTDOWN_DURATION;
+  championshipOverlay.classList.add("is-hidden");
+  updateCountdownOverlay();
   cameraController.snapToTarget();
 }
 
@@ -331,11 +340,7 @@ function updateRaceProgress(deltaTime) {
 
   if (activeMode !== "practice" && !wasFinished && lapState.finished) {
     playerFinishTime = elapsedRaceTime;
-    finishWaitStartedAt = elapsedRaceTime;
-  }
-
-  if (activeMode !== "practice" && lapState.finished && !raceFinished && areRaceResultsReady()) {
-    finishRace();
+    enterPostFinishMode();
   }
 }
 
@@ -364,12 +369,49 @@ function coastFinishedCar(car, deltaTime) {
   car.velocity.multiplyScalar(Math.pow(0.08, deltaTime));
 }
 
-function areRaceResultsReady() {
-  if (aiRacers.every((racer) => racer.lapState.finished)) {
-    return true;
+function enterPostFinishMode() {
+  if (resultsVisible) {
+    return;
   }
 
-  return elapsedRaceTime - (finishWaitStartedAt ?? elapsedRaceTime) >= FINISH_WAIT_LIMIT;
+  resultsVisible = true;
+  raceFinished = false;
+  postFinishCameraTime = 0;
+  postFinishPlayerController = new AIController(player, track, {
+    difficulty: "Medium",
+    laneOffset: 0,
+    startProgress: player.trackProgress,
+  });
+  postFinishPlayerController.previousPosition.copy(player.group.position);
+  document.querySelector("#hud").classList.add("is-hidden");
+  setPaused(false);
+  input.clear();
+  showLiveRaceResults();
+}
+
+function updatePostFinishPlayer(deltaTime) {
+  if (!postFinishPlayerController) {
+    player.update(deltaTime, EMPTY_CONTROLS, track);
+    player.velocity.multiplyScalar(Math.pow(0.08, deltaTime));
+    return;
+  }
+
+  postFinishPlayerController.update(deltaTime, aiRacers.map((racer) => racer.car));
+}
+
+function updatePostFinishCamera(deltaTime) {
+  postFinishCameraTime += deltaTime;
+  const focus = player?.group.position ?? new THREE.Vector3();
+  const angle = postFinishCameraTime * 0.32;
+  const radius = 58;
+  const height = 20 + Math.sin(postFinishCameraTime * 0.6) * 3.5;
+
+  camera.position.set(
+    focus.x + Math.sin(angle) * radius,
+    focus.y + height,
+    focus.z + Math.cos(angle) * radius,
+  );
+  camera.lookAt(focus.x, focus.y + 2.8, focus.z);
 }
 
 function resolveCarCollisions() {
@@ -512,13 +554,14 @@ function animate() {
     return;
   }
 
-  if (controls.resetPressed) {
+  if (controls.resetPressed && !resultsVisible) {
     resetRace();
     input.consumeReset();
   }
 
   if (raceCountdownRemaining > 0) {
     raceCountdownRemaining = Math.max(0, raceCountdownRemaining - deltaTime);
+    updateCountdownOverlay();
     cameraController.update(deltaTime, {
       speed: player.speed,
       steering: player.steerAmount,
@@ -545,14 +588,29 @@ function animate() {
     renderer.render(scene, camera);
     return;
   }
+  updateCountdownOverlay();
 
-  player.update(deltaTime, lapState.finished ? EMPTY_CONTROLS : controls, track);
-  if (lapState.finished) {
-    player.velocity.multiplyScalar(Math.pow(0.08, deltaTime));
+  if (lapState.finished && resultsVisible) {
+    updatePostFinishPlayer(deltaTime);
+  } else {
+    player.update(deltaTime, controls, track);
   }
   updateRival(deltaTime);
   resolveCarCollisions();
   updateRaceProgress(deltaTime);
+
+  if (resultsVisible) {
+    refreshLiveRaceResults();
+    updatePostFinishCamera(deltaTime);
+    audio.update({
+      player,
+      camera,
+      controls: postFinishPlayerController?.currentControls ?? EMPTY_CONTROLS,
+      aiRacers,
+    });
+    renderer.render(scene, camera);
+    return;
+  }
 
   if (raceFinished || !raceStarted) {
     renderer.render(scene, camera);
@@ -593,22 +651,59 @@ function animate() {
   renderer.render(scene, camera);
 }
 
-function finishRace() {
+function showLiveRaceResults() {
+  championshipOverlay.classList.remove("is-hidden");
+  trophyCeremony.classList.add("is-hidden");
+  championshipKicker.textContent = activeMode === "championship" ? "Race Complete" : "Race Complete";
+  championshipTitle.textContent = activeMode === "championship"
+    ? `Race ${championship.currentRaceIndex + 1} Results`
+    : "Results";
+  championshipContinue.textContent = activeMode === "championship" ? "Next Race" : "Main Menu";
+  championshipContinue.onclick = handleResultsContinue;
+  refreshLiveRaceResults();
+}
+
+function refreshLiveRaceResults() {
+  const finishedCount = 1 + aiRacers.filter((racer) => racer.lapState.finished).length;
+  const totalRacers = 1 + aiRacers.length;
+  const allFinished = finishedCount >= totalRacers;
+
+  if (allFinished && !raceFinished) {
+    raceFinished = true;
+    audio.silenceRaceAudio();
+  }
+
+  championshipSummary.textContent = allFinished
+    ? "All racers finished. Final order and race completion times."
+    : `${finishedCount}/${totalRacers} finished. AI times update live as they cross the line.`;
+  renderStandings(getRaceResultsWithPoints({ live: !allFinished }));
+}
+
+function handleResultsContinue() {
+  championshipOverlay.classList.add("is-hidden");
+  resultsVisible = false;
   raceFinished = true;
-  raceStarted = false;
   audio.silenceRaceAudio();
-  document.querySelector("#hud").classList.add("is-hidden");
 
   if (activeMode === "championship") {
-    const snapshot = championship.recordRace(getRaceResults());
-    showChampionshipResults(snapshot);
+    const snapshot = championship.recordRace(getRaceResults({ live: false }));
+
+    if (snapshot.isFinalRace) {
+      raceStarted = false;
+      document.querySelector("#hud").classList.add("is-hidden");
+      showChampionshipResults(snapshot);
+      return;
+    }
+
+    championship.advanceRace();
+    startNextChampionshipRace();
     return;
   }
 
-  showSingleRaceResults();
+  showMainMenu();
 }
 
-function getRaceResults() {
+function getRaceResults({ live = resultsVisible } = {}) {
   const racers = [
     {
       name: "Player",
@@ -628,7 +723,14 @@ function getRaceResults() {
     ...result,
     rank: index + 1,
     lastPosition: index + 1,
-    timeText: formatRaceTime(result.finishTime),
+    timeText: result.finished ? formatRaceTime(result.finishTime) : live ? "Racing" : "DNF",
+  }));
+}
+
+function getRaceResultsWithPoints({ live = resultsVisible } = {}) {
+  return getRaceResults({ live }).map((result, index) => ({
+    ...result,
+    points: RACE_POINTS[index] ?? 0,
   }));
 }
 
@@ -667,39 +769,29 @@ function showChampionshipResults(snapshot) {
   };
 }
 
-function showSingleRaceResults() {
-  const results = getRaceResults().map((result, index) => ({
-    ...result,
-    points: [10, 8, 6, 4, 2, 1][index] ?? 0,
-  }));
-
-  championshipOverlay.classList.remove("is-hidden");
-  trophyCeremony.classList.add("is-hidden");
-  championshipKicker.textContent = "Race Complete";
-  championshipTitle.textContent = "Results";
-  championshipSummary.textContent = "Final order and race completion times.";
-  championshipContinue.textContent = "Main Menu";
-  renderStandings(results);
-  championshipContinue.onclick = () => {
-    championshipOverlay.classList.add("is-hidden");
-    showMainMenu();
-  };
-}
-
 function startNextChampionshipRace() {
   audio.startRaceAudio();
   audio.playCountdown();
   raceStarted = true;
+  raceFinished = false;
+  resultsVisible = false;
+  championshipOverlay.classList.add("is-hidden");
   document.querySelector("#hud").classList.remove("is-hidden");
   resetRace();
 }
 
 function showMainMenu() {
   raceStarted = false;
+  raceFinished = false;
+  resultsVisible = false;
+  postFinishPlayerController = null;
+  raceCountdownRemaining = 0;
   audio.silenceRaceAudio();
   setPaused(false);
   activeMode = "quick-race";
   championship.stop();
+  championshipOverlay.classList.add("is-hidden");
+  updateCountdownOverlay();
   document.querySelector("#hud").classList.add("is-hidden");
   menu.showHome();
 }
@@ -736,6 +828,20 @@ function getLapDelta() {
   }
 
   return getCurrentLapTime() - bestLapTime;
+}
+
+function updateCountdownOverlay() {
+  if (!countdownOverlay || !countdownReadout) {
+    return;
+  }
+
+  if (raceCountdownRemaining <= 0) {
+    countdownOverlay.classList.add("is-hidden");
+    return;
+  }
+
+  countdownReadout.textContent = String(Math.max(1, Math.ceil(raceCountdownRemaining)));
+  countdownOverlay.classList.remove("is-hidden");
 }
 
 function formatRaceTime(totalSeconds) {
@@ -779,14 +885,20 @@ function bindPauseMenu() {
   pauseHome.addEventListener("click", () => showMainMenu());
   pauseChangeCar.addEventListener("click", () => {
     raceStarted = false;
+    resultsVisible = false;
+    postFinishPlayerController = null;
     audio.silenceRaceAudio();
+    championshipOverlay.classList.add("is-hidden");
     document.querySelector("#hud").classList.add("is-hidden");
     setPaused(false);
     menu.showVehicleSelect();
   });
   pauseSettings.addEventListener("click", () => {
     raceStarted = false;
+    resultsVisible = false;
+    postFinishPlayerController = null;
     audio.silenceRaceAudio();
+    championshipOverlay.classList.add("is-hidden");
     document.querySelector("#hud").classList.add("is-hidden");
     setPaused(false);
     menu.showOptions();
@@ -798,7 +910,7 @@ function bindPauseMenu() {
   });
 
   window.addEventListener("keydown", (event) => {
-    if (event.code !== "Escape" || !raceStarted) {
+    if (event.code !== "Escape" || !raceStarted || resultsVisible) {
       return;
     }
 
