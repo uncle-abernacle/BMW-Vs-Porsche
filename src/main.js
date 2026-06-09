@@ -276,14 +276,12 @@ function resetAiRacers() {
 }
 
 function getAiStartProgress(index) {
-  const row = Math.floor(index / 2);
-  const columnStagger = (index % 2) * 0.014;
-  return 0.03 + row * 0.038 + columnStagger;
+  return 0.04 + index * 0.028;
 }
 
 function getAiLaneOffset(index) {
-  const gridLaneWidth = Math.min(3, track.roadWidth * 0.2);
-  return index % 2 === 0 ? -gridLaneWidth : gridLaneWidth;
+  const gridLaneWidth = Math.min(1.15, track.roadWidth * 0.075);
+  return [-gridLaneWidth, gridLaneWidth, 0][index % 3];
 }
 
 function getAiGridPosition(index) {

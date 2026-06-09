@@ -91,7 +91,11 @@ export class AIController {
     const steeringError = this.#getSteeringError(target);
     const edgeSpeedMultiplier = edgeRatio > 0.48 ? THREE.MathUtils.lerp(1, 0.36, Math.min((edgeRatio - 0.48) / 0.34, 1)) : 1;
     const steeringSpeedMultiplier = Math.abs(steeringError) > 0.42 ? THREE.MathUtils.lerp(1, 0.62, Math.min(Math.abs(steeringError), 1)) : 1;
-    const desiredSpeed = this.settings.targetSpeed * traffic.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier;
+    const recoverySpeed = edgeRatio > 0.68 ? 11 : 0;
+    const desiredSpeed = Math.max(
+      recoverySpeed,
+      this.settings.targetSpeed * traffic.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier,
+    );
     const shouldBrake =
       (this.car.speed > desiredSpeed + 3 && this.car.speed > 8) ||
       (Math.abs(steeringError) > 0.82 && this.car.speed > desiredSpeed * 0.72) ||
@@ -99,9 +103,7 @@ export class AIController {
     const canBrakeWithoutReversing = this.car.speed > 5.5;
 
     this.currentControls = {
-      throttle:
-        this.car.speed < desiredSpeed &&
-        edgeRatio < 0.82,
+      throttle: this.car.speed < desiredSpeed && (!shouldBrake || this.car.speed < 5),
       brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
       steerLeft: steeringError > 0.08,
@@ -156,7 +158,7 @@ export class AIController {
 
   #recoverIfStuck(deltaTime, progress) {
     const movement = this.car.group.position.distanceTo(this.previousPosition);
-    const tryingToMove = this.currentControls.throttle || this.currentControls.brakeReverse;
+    const tryingToMove = this.currentControls.throttle || this.currentControls.brakeReverse || Math.abs(this.car.speed) < 1;
 
     if (tryingToMove && movement < 0.12) {
       this.stuckTimer += deltaTime;
