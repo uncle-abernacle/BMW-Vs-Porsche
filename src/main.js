@@ -247,7 +247,7 @@ function createAiRacers(playerVehicleId, mode = activeMode) {
 
     const controller = new AIController(car, track, {
       difficulty: difficulties[index],
-      laneOffset: index % 2 === 0 ? 4.5 : -4.5,
+      laneOffset: getAiLaneOffset(index),
       startProgress: 0.018 + index * 0.007,
     });
 
@@ -265,8 +265,13 @@ function createAiRacers(playerVehicleId, mode = activeMode) {
 function resetAiRacers() {
   aiRacers.forEach((racer, index) => {
     racer.lapState = track.createLapState();
-    racer.controller.reset(0.018 + index * 0.008, index % 2 === 0 ? 4.5 : -4.5);
+    racer.controller.reset(0.018 + index * 0.008, getAiLaneOffset(index));
   });
+}
+
+function getAiLaneOffset(index) {
+  const packLaneWidth = Math.min(2.4, track.roadWidth * 0.12);
+  return index % 2 === 0 ? packLaneWidth : -packLaneWidth;
 }
 
 function updateRaceProgress(deltaTime) {

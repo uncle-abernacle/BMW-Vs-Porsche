@@ -466,8 +466,8 @@ export class Car {
     this.group.add(rearBumper);
 
     for (const side of [-1, 1]) {
-      const sideSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, length * 0.34), stripeMaterial);
-      sideSkirt.position.set(side * width * 0.57, lowerBody.position.y - height * 0.2, 0.02);
+      const sideSkirt = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, length * 0.4), stripeMaterial);
+      sideSkirt.position.set(side * width * 0.5, lowerBody.position.y - height * 0.22, 0.02);
       sideSkirt.castShadow = true;
       this.group.add(sideSkirt);
 

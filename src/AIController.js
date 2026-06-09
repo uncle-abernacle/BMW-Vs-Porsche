@@ -56,7 +56,7 @@ export class AIController {
 
   update(deltaTime, nearbyCars = []) {
     const progress = this.track.getProgressAtPosition(this.car.group.position, this.car.trackProgress);
-    const avoidance = this.#calculateAvoidance(nearbyCars);
+    const traffic = this.#calculateTraffic(nearbyCars);
     const speedRatio = THREE.MathUtils.clamp(Math.abs(this.car.speed) / this.car.maxForwardSpeed, 0, 1);
     const lookAhead = this.settings.lookAhead + speedRatio * 0.026;
     const laneLimit = this.#getUsableLaneLimit();
@@ -65,8 +65,8 @@ export class AIController {
 
     this.overtakeOffset = THREE.MathUtils.damp(
       this.overtakeOffset,
-      this.#clampLaneOffset(this.baseLaneOffset + avoidance.laneShift) - this.baseLaneOffset,
-      this.settings.reaction * 2.8,
+      traffic.laneShift,
+      this.settings.reaction * 2.2,
       deltaTime,
     );
 
@@ -85,12 +85,16 @@ export class AIController {
     const steeringError = this.#getSteeringError(target);
     const edgeSpeedMultiplier = edgeRatio > 0.74 ? THREE.MathUtils.lerp(1, 0.56, Math.min((edgeRatio - 0.74) / 0.26, 1)) : 1;
     const steeringSpeedMultiplier = Math.abs(steeringError) > 0.5 ? THREE.MathUtils.lerp(1, 0.68, Math.min(Math.abs(steeringError), 1)) : 1;
-    const desiredSpeed = this.settings.targetSpeed * avoidance.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier;
+    const desiredSpeed = this.settings.targetSpeed * traffic.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier;
     const shouldBrake = this.car.speed > desiredSpeed || Math.abs(steeringError) > 0.68 || edgeRatio > 0.84;
+    const canBrakeWithoutReversing = this.car.speed > 5.5;
 
     this.currentControls = {
-      throttle: this.car.speed < desiredSpeed && Math.abs(steeringError) < 1.08 && edgeRatio < 0.9,
-      brakeReverse: shouldBrake,
+      throttle:
+        !traffic.blocked &&
+        this.car.speed < desiredSpeed &&
+        Math.abs(steeringError) < 1.18,
+      brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
       steerLeft: steeringError > 0.08,
       steerRight: steeringError < -0.08,
@@ -107,9 +111,10 @@ export class AIController {
     return (lapState.currentLap - 1) + this.track.getProgressAtPosition(this.car.group.position, this.car.trackProgress);
   }
 
-  #calculateAvoidance(nearbyCars) {
+  #calculateTraffic(nearbyCars) {
     let laneShift = 0;
     let speedMultiplier = 1;
+    let blocked = false;
     const forward = this.#getForwardVector();
     const right = this.#getRightVector();
 
@@ -119,21 +124,23 @@ export class AIController {
       const offset = otherCar.group.position.clone().sub(this.car.group.position);
       const forwardDistance = offset.dot(forward);
       const sideDistance = offset.dot(right);
-      const isAhead = forwardDistance > 0 && forwardDistance < 20;
-      const isTooCloseSide = Math.abs(sideDistance) < 7.5;
+      const isAhead = forwardDistance > 0 && forwardDistance < 18;
+      const isTooCloseSide = Math.abs(sideDistance) < 5.8;
 
       if (!isAhead || !isTooCloseSide) {
         continue;
       }
 
       const passDirection = sideDistance >= 0 ? -1 : 1;
-      laneShift += passDirection * THREE.MathUtils.lerp(4, 8, this.settings.aggression);
-      speedMultiplier = Math.min(speedMultiplier, forwardDistance < 9 ? 0.72 : 0.9);
+      laneShift += passDirection * THREE.MathUtils.lerp(0.35, 1.35, this.settings.aggression);
+      speedMultiplier = Math.min(speedMultiplier, THREE.MathUtils.clamp(forwardDistance / 15, 0.62, 0.96));
+      blocked = blocked || forwardDistance < 5.5;
     }
 
     return {
-      laneShift: THREE.MathUtils.clamp(laneShift, -6, 6),
+      laneShift: THREE.MathUtils.clamp(laneShift, -2, 2),
       speedMultiplier,
+      blocked,
     };
   }
 

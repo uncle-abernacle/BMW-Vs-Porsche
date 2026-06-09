@@ -636,6 +636,11 @@ export class Track {
       roughness: 0.58,
       flatShading: true,
     });
+    const postMaterial = new THREE.MeshStandardMaterial({
+      color: 0x6e6b60,
+      roughness: 0.88,
+      flatShading: true,
+    });
 
     [0.16, 0.42, 0.68].forEach((t) => {
       const point = this.getPointOnCenterLine(t);
@@ -673,6 +678,7 @@ export class Track {
       sign.position.y += 4.3;
       sign.castShadow = true;
       this.group.add(sign);
+      this.#addPanelPosts(sign, 7, 3.4, postMaterial, 2);
     });
   }
 
@@ -823,6 +829,7 @@ export class Track {
       flatShading: true,
     });
     const signMaterial = new THREE.MeshStandardMaterial({ color: 0xd55a38, emissive: 0x230703, roughness: 0.68 });
+    const postMaterial = new THREE.MeshStandardMaterial({ color: 0x5d5244, roughness: 0.86, flatShading: true });
 
     for (let i = 0; i < 80; i += 1) {
       const t = i / 80;
@@ -837,6 +844,7 @@ export class Track {
       sign.rotation.y += Math.PI / 2;
       sign.castShadow = true;
       this.group.add(sign);
+      this.#addPanelPosts(sign, 5, 3.2, postMaterial, 1);
     });
   }
 
@@ -903,6 +911,28 @@ export class Track {
     rock.scale.set(radius * 0.9, height * 0.5, radius);
     rock.rotation.set(0.08, this.#getHeadingAt(t) + radius * 0.03, -0.06);
     return rock;
+  }
+
+  #addPanelPosts(panel, panelWidth, panelHeight, material, postCount = 1) {
+    const groundY = this.#terrainHeightAt(panel.position.x, panel.position.z);
+    const bottomY = panel.position.y - panelHeight * 0.5;
+    const postHeight = bottomY - groundY;
+
+    if (postHeight <= 0.4) {
+      return;
+    }
+
+    const across = new THREE.Vector3(Math.cos(panel.rotation.y), 0, -Math.sin(panel.rotation.y));
+    const offsets = postCount > 1 ? [-panelWidth * 0.32, panelWidth * 0.32] : [0];
+
+    for (const offset of offsets) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.45, postHeight, 0.45), material);
+      post.position.copy(panel.position).addScaledVector(across, offset);
+      post.position.y = groundY + postHeight * 0.5;
+      post.castShadow = true;
+      post.receiveShadow = true;
+      this.group.add(post);
+    }
   }
 
   #safeLateralOffset(lateralOffset, objectWidth = 0, minClearance = this.trackClearance) {
