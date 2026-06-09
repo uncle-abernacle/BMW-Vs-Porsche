@@ -111,8 +111,16 @@ export class AIController {
       recoverySpeed,
       this.settings.targetSpeed * edgeSpeedMultiplier * steeringSpeedMultiplier,
     );
-    const desiredSpeed = this.car.maxForwardSpeed;
+    const spacingSpeed = Number.isFinite(traffic.followingDistance)
+      ? THREE.MathUtils.clamp(
+          (traffic.followingDistance - 4.2) * 4.6 + Math.max(0, traffic.leadSpeed) * 0.35,
+          10,
+          this.car.maxForwardSpeed,
+        )
+      : this.car.maxForwardSpeed;
+    const desiredSpeed = Math.min(this.car.maxForwardSpeed, spacingSpeed);
     const shouldBrake =
+      traffic.spacingBrake ||
       (this.car.speed > cornerSpeed + 6 && this.car.speed > 16 && (Math.abs(steeringError) > 0.92 || edgeRatio > 0.76)) ||
       this.car.speed > this.car.maxForwardSpeed + 1.5;
     const canBrakeWithoutReversing = this.car.speed > 5.5;
@@ -120,7 +128,7 @@ export class AIController {
     this.smoothedSteering = THREE.MathUtils.damp(this.smoothedSteering, rawSteering, 3.15, deltaTime);
 
     this.currentControls = {
-      throttle: (this.car.speed < desiredSpeed && !shouldBrake) || this.stuckTimer > 0.35,
+      throttle: (this.car.speed < desiredSpeed && !shouldBrake) || (this.stuckTimer > 0.35 && !traffic.spacingBrake),
       brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
       steering: this.smoothedSteering,
@@ -132,7 +140,7 @@ export class AIController {
 
     this.car.update(deltaTime, this.currentControls, this.track);
     this.#applyRacingLineAssist(deltaTime, progress, lookAhead);
-    this.#recoverIfStuck(deltaTime, progress, lookAhead, edgeRatio);
+    this.#recoverIfStuck(deltaTime, progress, lookAhead, edgeRatio, traffic.spacingBrake);
 
     return this.currentControls;
   }
@@ -145,9 +153,15 @@ export class AIController {
     let laneShift = 0;
     let passRequest = 0;
     let closestForwardDistance = Infinity;
+    let closestLeadSpeed = 0;
+    let closestSideDistance = 0;
+    let leftPressure = 0;
+    let rightPressure = 0;
     const passRoom = THREE.MathUtils.clamp((this.track.roadWidth - 14) / 12, 0, 1);
     const forward = this.#getForwardVector();
     const right = this.#getRightVector();
+    const ownHalfWidth = (this.car.design?.width ?? 4) * 0.5;
+    const scanDistance = 28;
 
     for (const otherCar of nearbyCars) {
       if (!otherCar || otherCar === this.car) continue;
@@ -155,29 +169,58 @@ export class AIController {
       const offset = otherCar.group.position.clone().sub(this.car.group.position);
       const forwardDistance = offset.dot(forward);
       const sideDistance = offset.dot(right);
-      const isAhead = forwardDistance > 0 && forwardDistance < 18;
-      const isAdjacentTraffic = Math.abs(sideDistance) < 6.2;
+      const otherHalfWidth = (otherCar.design?.width ?? 4) * 0.5;
+      const sideClearance = ownHalfWidth + otherHalfWidth + 1.5;
+      const pressureWeight = THREE.MathUtils.clamp((24 - Math.abs(forwardDistance)) / 24, 0, 1);
+
+      if (forwardDistance > -6 && forwardDistance < 24 && Math.abs(sideDistance) < 10) {
+        const sidePressure = pressureWeight * THREE.MathUtils.clamp((10 - Math.abs(sideDistance)) / 10, 0, 1);
+        if (sideDistance >= 0) {
+          rightPressure += sidePressure;
+        } else {
+          leftPressure += sidePressure;
+        }
+      }
+
+      const isAhead = forwardDistance > 0 && forwardDistance < scanDistance;
+      const isAdjacentTraffic = Math.abs(sideDistance) < sideClearance;
 
       if (!isAhead || !isAdjacentTraffic) {
         continue;
       }
 
       const passDirection = sideDistance >= 0 ? -1 : 1;
-      laneShift += passDirection * THREE.MathUtils.lerp(0.08, 0.42, this.settings.aggression) * passRoom;
+      const urgency = THREE.MathUtils.clamp((scanDistance - forwardDistance) / scanDistance, 0, 1);
+      laneShift += passDirection * THREE.MathUtils.lerp(0.08, 0.42, this.settings.aggression) * passRoom * urgency;
 
       if (forwardDistance < closestForwardDistance) {
         closestForwardDistance = forwardDistance;
-        passRequest = passDirection;
+        closestLeadSpeed = otherCar.speed ?? 0;
+        closestSideDistance = sideDistance;
       }
     }
+
+    if (Number.isFinite(closestForwardDistance)) {
+      const lessCrowdedSide = rightPressure <= leftPressure ? 1 : -1;
+      passRequest = Math.abs(closestSideDistance) > 0.9
+        ? closestSideDistance >= 0
+          ? -1
+          : 1
+        : lessCrowdedSide;
+    }
+
+    const minimumGap = 7.2 + THREE.MathUtils.clamp(Math.abs(this.car.speed) * 0.18, 0, 11);
 
     return {
       laneShift: THREE.MathUtils.clamp(laneShift, -0.45, 0.45),
       passRequest,
+      followingDistance: closestForwardDistance,
+      leadSpeed: closestLeadSpeed,
+      spacingBrake: closestForwardDistance < Math.max(5.6, minimumGap * 0.68) && this.car.speed > 6,
     };
   }
 
-  #recoverIfStuck(deltaTime, progress, lookAhead, edgeRatio) {
+  #recoverIfStuck(deltaTime, progress, lookAhead, edgeRatio, trafficBlocked = false) {
     const movement = this.car.group.position.distanceTo(this.previousPosition);
     const tryingToMove = this.currentControls.throttle || this.currentControls.brakeReverse || Math.abs(this.car.speed) < 1;
 
@@ -191,13 +234,17 @@ export class AIController {
       this.overtakeOffset = THREE.MathUtils.damp(this.overtakeOffset, 0, 5, deltaTime);
     }
 
-    if (this.stuckTimer > 0.45 || edgeRatio > 0.82) {
+    if (trafficBlocked) {
+      this.stuckTimer = Math.min(this.stuckTimer, 0.55);
+    }
+
+    if (!trafficBlocked && (this.stuckTimer > 0.45 || edgeRatio > 0.82)) {
       const heading = this.#getHeadingAt(progress + lookAhead);
       this.car.group.rotation.y = this.#dampAngle(this.car.group.rotation.y, heading, 3.2, deltaTime);
       this.car.velocity.addScaledVector(this.#getForwardVector(), 7 * deltaTime);
     }
 
-    if (this.stuckTimer > this.settings.recoverySeconds) {
+    if (!trafficBlocked && this.stuckTimer > this.settings.recoverySeconds) {
       const target = this.#getOffsetTrackPoint(progress, 0);
       const heading = this.#getHeadingAt(progress);
       const correction = target.clone().sub(this.car.group.position);

@@ -381,7 +381,7 @@ function pullCarInsideRoad(car) {
   }
 
   const surface = track.getRoadSurfaceAtPosition(car.group.position, car.trackProgress);
-  car.group.position.y = surface.height;
+  car.group.position.y = surface.height + (car.rideHeight ?? 0);
   car.trackProgress = surface.progress ?? car.trackProgress;
 }
 
