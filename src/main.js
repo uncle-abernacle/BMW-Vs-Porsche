@@ -66,6 +66,9 @@ const hud = new HUD();
 const audio = new AudioManager();
 const clock = new THREE.Clock();
 const championship = new ChampionshipManager();
+const TOTAL_RACE_CARS = 10;
+const AI_RACER_COUNT = TOTAL_RACE_CARS - 1;
+const AI_DIFFICULTY_SEQUENCE = ["Easy", "Medium", "Hard", "Medium", "Hard", "Easy", "Medium", "Hard", "Medium"];
 let menu = null;
 const championshipOverlay = document.querySelector("#championship-overlay");
 const championshipKicker = document.querySelector("#championship-kicker");
@@ -233,30 +236,31 @@ function createAiRacers(playerVehicleId, mode = activeMode) {
   const allVehicles = TEAMS.flatMap((team) => team.vehicles);
   const opponentVehicles = allVehicles
     .filter((candidate) => candidate.id !== playerVehicleId)
-    .slice(0, 5);
-  const difficulties = ["Easy", "Medium", "Medium", "Hard", "Hard"];
+    .slice(0, AI_RACER_COUNT);
 
   aiRacers = opponentVehicles.map((vehicle, index) => {
+    const startProgress = getAiStartProgress(index);
+    const difficulty = AI_DIFFICULTY_SEQUENCE[index % AI_DIFFICULTY_SEQUENCE.length];
     const car = new Car({
       ...vehicle,
       name: vehicle.shortName,
-      startPosition: track.getPointOnCenterLine(0.02 + index * 0.006),
+      startPosition: track.getPointOnCenterLine(startProgress),
       startRotation: track.startRotation,
       isPlayer: false,
     });
     scene.add(car.group);
 
     const controller = new AIController(car, track, {
-      difficulty: difficulties[index],
+      difficulty,
       laneOffset: getAiLaneOffset(index),
-      startProgress: 0.018 + index * 0.007,
+      startProgress,
     });
 
     return {
       car,
       controller,
       lapState: track.createLapState(),
-      difficulty: difficulties[index],
+      difficulty,
     };
   });
 
@@ -266,13 +270,19 @@ function createAiRacers(playerVehicleId, mode = activeMode) {
 function resetAiRacers() {
   aiRacers.forEach((racer, index) => {
     racer.lapState = track.createLapState();
-    racer.controller.reset(0.018 + index * 0.008, getAiLaneOffset(index));
+    racer.controller.reset(getAiStartProgress(index), getAiLaneOffset(index));
   });
 }
 
+function getAiStartProgress(index) {
+  const row = Math.floor(index / 3);
+  const columnStagger = (index % 3) * 0.004;
+  return 0.022 + row * 0.018 + columnStagger;
+}
+
 function getAiLaneOffset(index) {
-  const packLaneWidth = Math.min(1.4, track.roadWidth * 0.075);
-  return index % 2 === 0 ? packLaneWidth : -packLaneWidth;
+  const gridLaneWidth = Math.min(2.2, track.roadWidth * 0.13);
+  return [-gridLaneWidth, 0, gridLaneWidth][index % 3];
 }
 
 function updateRaceProgress(deltaTime) {

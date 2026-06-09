@@ -87,14 +87,16 @@ export class AIController {
     const edgeSpeedMultiplier = edgeRatio > 0.6 ? THREE.MathUtils.lerp(1, 0.48, Math.min((edgeRatio - 0.6) / 0.3, 1)) : 1;
     const steeringSpeedMultiplier = Math.abs(steeringError) > 0.5 ? THREE.MathUtils.lerp(1, 0.68, Math.min(Math.abs(steeringError), 1)) : 1;
     const desiredSpeed = this.settings.targetSpeed * traffic.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier;
-    const shouldBrake = this.car.speed > desiredSpeed || Math.abs(steeringError) > 0.68 || edgeRatio > 0.84;
+    const shouldBrake =
+      (this.car.speed > desiredSpeed + 3 && this.car.speed > 8) ||
+      (Math.abs(steeringError) > 0.88 && this.car.speed > desiredSpeed * 0.78) ||
+      edgeRatio > 0.84;
     const canBrakeWithoutReversing = this.car.speed > 5.5;
 
     this.currentControls = {
       throttle:
-        !traffic.blocked &&
         this.car.speed < desiredSpeed &&
-        Math.abs(steeringError) < 1.18,
+        edgeRatio < 0.9,
       brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
       steerLeft: steeringError > 0.08,
@@ -115,7 +117,6 @@ export class AIController {
   #calculateTraffic(nearbyCars) {
     let laneShift = 0;
     let speedMultiplier = 1;
-    let blocked = false;
     const forward = this.#getForwardVector();
     const right = this.#getRightVector();
 
@@ -126,22 +127,24 @@ export class AIController {
       const forwardDistance = offset.dot(forward);
       const sideDistance = offset.dot(right);
       const isAhead = forwardDistance > 0 && forwardDistance < 18;
-      const isTooCloseSide = Math.abs(sideDistance) < 5.8;
+      const isAdjacentTraffic = Math.abs(sideDistance) < 6.2;
+      const isSameLaneTraffic = Math.abs(sideDistance) < 3.4;
 
-      if (!isAhead || !isTooCloseSide) {
+      if (!isAhead || !isAdjacentTraffic) {
         continue;
       }
 
       const passDirection = sideDistance >= 0 ? -1 : 1;
       laneShift += passDirection * THREE.MathUtils.lerp(0.12, 0.5, this.settings.aggression);
-      speedMultiplier = Math.min(speedMultiplier, THREE.MathUtils.clamp(forwardDistance / 15, 0.62, 0.96));
-      blocked = blocked || forwardDistance < 5.5;
+
+      if (isSameLaneTraffic) {
+        speedMultiplier = Math.min(speedMultiplier, THREE.MathUtils.clamp(forwardDistance / 14, 0.82, 0.98));
+      }
     }
 
     return {
       laneShift: THREE.MathUtils.clamp(laneShift, -0.75, 0.75),
       speedMultiplier,
-      blocked,
     };
   }
 
@@ -155,16 +158,26 @@ export class AIController {
       this.stuckTimer = Math.max(0, this.stuckTimer - deltaTime * 1.5);
     }
 
-    if (this.stuckTimer > this.settings.recoverySeconds) {
-      const recoveryProgress = progress + 0.014;
-      const target = this.#getOffsetTrackPoint(recoveryProgress, this.baseLaneOffset);
-      const heading = this.#getHeadingAt(recoveryProgress);
+    if (this.stuckTimer > 0.7) {
+      this.overtakeOffset = THREE.MathUtils.damp(this.overtakeOffset, 0, 5, deltaTime);
+    }
 
-      this.car.group.position.lerp(target, 0.16);
-      this.car.group.rotation.y = THREE.MathUtils.damp(this.car.group.rotation.y, heading, 8, deltaTime);
-      this.car.velocity.multiplyScalar(0.32);
-      this.car.trackProgress = THREE.MathUtils.euclideanModulo(recoveryProgress, 1);
-      this.stuckTimer = this.settings.recoverySeconds * 0.45;
+    if (this.stuckTimer > this.settings.recoverySeconds) {
+      const target = this.#getOffsetTrackPoint(progress, 0);
+      const heading = this.#getHeadingAt(progress);
+      const correction = target.clone().sub(this.car.group.position);
+      correction.y = 0;
+
+      if (correction.lengthSq() > 0.001) {
+        const correctionLength = correction.length();
+        const maxStep = 1.1 * deltaTime;
+        this.car.group.position.addScaledVector(correction.normalize(), Math.min(maxStep, correctionLength));
+      }
+
+      this.car.group.rotation.y = THREE.MathUtils.damp(this.car.group.rotation.y, heading, 5.5, deltaTime);
+      this.car.velocity.multiplyScalar(0.82);
+      this.car.velocity.addScaledVector(this.#getForwardVector(), 5.5 * deltaTime);
+      this.stuckTimer = this.settings.recoverySeconds * 0.35;
     }
 
     this.previousPosition.copy(this.car.group.position);
