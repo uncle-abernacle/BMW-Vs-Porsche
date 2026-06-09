@@ -98,7 +98,8 @@ export class Car {
     const throttle = controls.throttle ? 1 : 0;
     const brakeOrReverse = controls.brakeReverse ? 1 : 0;
     const handbrake = controls.handbrake ? 1 : 0;
-    const steeringInput = controls.steerLeft ? 1 : controls.steerRight ? -1 : 0;
+    const steeringInput =
+      controls.steering ?? (controls.steerLeft ? 1 : controls.steerRight ? -1 : 0);
 
     const forward = this.#getForwardVector();
     const right = this.#getRightVector();
@@ -130,8 +131,11 @@ export class Car {
     const steerResponse = 0.12 + speedRatio * 0.6;
     const reverseSteer = forwardSpeed >= -0.5 ? 1 : -1;
     const driftYawBoost = 1 + this.driftAmount * 0.24;
-    const yawDelta = this.steerAmount * this.turnRate * steerResponse * driftYawBoost * reverseSteer * deltaTime;
-    this.group.rotation.y += THREE.MathUtils.clamp(yawDelta, -1.38 * deltaTime, 1.38 * deltaTime);
+    const steeringAssist = controls.steeringAssist ?? 1;
+    const yawDelta =
+      this.steerAmount * this.turnRate * steerResponse * driftYawBoost * steeringAssist * reverseSteer * deltaTime;
+    const maxYawStep = 1.38 * steeringAssist * deltaTime;
+    this.group.rotation.y += THREE.MathUtils.clamp(yawDelta, -maxYawStep, maxYawStep);
 
     this.#limitTopSpeed();
     this.group.position.addScaledVector(this.velocity, deltaTime);

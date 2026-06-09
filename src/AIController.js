@@ -93,26 +93,29 @@ export class AIController {
     const steeringSpeedMultiplier = Math.abs(steeringError) > 0.42 ? THREE.MathUtils.lerp(1, 0.62, Math.min(Math.abs(steeringError), 1)) : 1;
     const recoverySpeed = edgeRatio > 0.68 ? 11 : 0;
     const desiredSpeed = Math.max(
+      18,
       recoverySpeed,
       this.settings.targetSpeed * traffic.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier,
     );
     const shouldBrake =
-      (this.car.speed > desiredSpeed + 3 && this.car.speed > 8) ||
-      (Math.abs(steeringError) > 0.82 && this.car.speed > desiredSpeed * 0.72) ||
-      (edgeRatio > 0.78 && this.car.speed > 7);
+      (this.car.speed > desiredSpeed + 5 && this.car.speed > 12) ||
+      (Math.abs(steeringError) > 1.05 && this.car.speed > 18);
     const canBrakeWithoutReversing = this.car.speed > 5.5;
+    const steeringInput = THREE.MathUtils.clamp(steeringError * 1.65, -1, 1);
 
     this.currentControls = {
-      throttle: this.car.speed < desiredSpeed && (!shouldBrake || this.car.speed < 5),
+      throttle: this.car.speed < desiredSpeed || this.stuckTimer > 0.35,
       brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
+      steering: steeringInput,
+      steeringAssist: 1.32,
       steerLeft: steeringError > 0.08,
       steerRight: steeringError < -0.08,
       resetPressed: false,
     };
 
     this.car.update(deltaTime, this.currentControls, this.track);
-    this.#recoverIfStuck(deltaTime, progress);
+    this.#recoverIfStuck(deltaTime, progress, lookAhead, edgeRatio);
 
     return this.currentControls;
   }
@@ -156,7 +159,7 @@ export class AIController {
     };
   }
 
-  #recoverIfStuck(deltaTime, progress) {
+  #recoverIfStuck(deltaTime, progress, lookAhead, edgeRatio) {
     const movement = this.car.group.position.distanceTo(this.previousPosition);
     const tryingToMove = this.currentControls.throttle || this.currentControls.brakeReverse || Math.abs(this.car.speed) < 1;
 
@@ -168,6 +171,12 @@ export class AIController {
 
     if (this.stuckTimer > 0.7) {
       this.overtakeOffset = THREE.MathUtils.damp(this.overtakeOffset, 0, 5, deltaTime);
+    }
+
+    if (this.stuckTimer > 0.45 || edgeRatio > 0.82) {
+      const heading = this.#getHeadingAt(progress + lookAhead);
+      this.car.group.rotation.y = this.#dampAngle(this.car.group.rotation.y, heading, 7, deltaTime);
+      this.car.velocity.addScaledVector(this.#getForwardVector(), 9 * deltaTime);
     }
 
     if (this.stuckTimer > this.settings.recoverySeconds) {
@@ -182,9 +191,9 @@ export class AIController {
         this.car.group.position.addScaledVector(correction.normalize(), Math.min(maxStep, correctionLength));
       }
 
-      this.car.group.rotation.y = THREE.MathUtils.damp(this.car.group.rotation.y, heading, 5.5, deltaTime);
+      this.car.group.rotation.y = this.#dampAngle(this.car.group.rotation.y, heading, 5.5, deltaTime);
       this.car.velocity.multiplyScalar(0.82);
-      this.car.velocity.addScaledVector(this.#getForwardVector(), 5.5 * deltaTime);
+      this.car.velocity.addScaledVector(this.#getForwardVector(), 12 * deltaTime);
       this.stuckTimer = this.settings.recoverySeconds * 0.35;
     }
 
@@ -242,6 +251,11 @@ export class AIController {
     return Math.atan2(point.x - next.x, point.z - next.z);
   }
 
+  #dampAngle(current, target, lambda, deltaTime) {
+    const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+    return current + delta * (1 - Math.exp(-lambda * deltaTime));
+  }
+
   #getForwardVector() {
     return new THREE.Vector3(
       -Math.sin(this.car.group.rotation.y),
@@ -263,6 +277,8 @@ export class AIController {
       throttle: false,
       brakeReverse: false,
       handbrake: false,
+      steering: 0,
+      steeringAssist: 1,
       steerLeft: false,
       steerRight: false,
       resetPressed: false,

@@ -276,7 +276,7 @@ function resetAiRacers() {
 }
 
 function getAiStartProgress(index) {
-  return 0.04 + index * 0.028;
+  return 0.04 + index * 0.018;
 }
 
 function getAiLaneOffset(index) {
