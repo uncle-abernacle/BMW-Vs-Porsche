@@ -3,21 +3,21 @@ import * as THREE from "three";
 const DIFFICULTY_SETTINGS = {
   Easy: {
     targetSpeed: 32,
-    lookAhead: 0.034,
+    lookAhead: 0.018,
     reaction: 0.78,
     aggression: 0.45,
     recoverySeconds: 3.2,
   },
   Medium: {
     targetSpeed: 42,
-    lookAhead: 0.044,
+    lookAhead: 0.022,
     reaction: 0.92,
     aggression: 0.68,
     recoverySeconds: 2.5,
   },
   Hard: {
     targetSpeed: 52,
-    lookAhead: 0.052,
+    lookAhead: 0.026,
     reaction: 1.08,
     aggression: 0.86,
     recoverySeconds: 1.9,
@@ -59,7 +59,7 @@ export class AIController {
     const traffic = this.#calculateTraffic(nearbyCars);
     const speedRatio = THREE.MathUtils.clamp(Math.abs(this.car.speed) / this.car.maxForwardSpeed, 0, 1);
     const roadTightness = THREE.MathUtils.clamp((18 - this.track.roadWidth) / 8, 0, 1);
-    const lookAhead = (this.settings.lookAhead + speedRatio * 0.02) * THREE.MathUtils.lerp(1, 0.68, roadTightness);
+    const lookAhead = this.settings.lookAhead + speedRatio * THREE.MathUtils.lerp(0.014, 0.008, roadTightness);
     const laneLimit = this.#getUsableLaneLimit();
     const safeLaneLimit = laneLimit * THREE.MathUtils.lerp(0.6, 0.42, roadTightness);
     const laneInfo = this.#getLaneInfo(this.car.group.position, progress);
@@ -72,11 +72,7 @@ export class AIController {
       deltaTime,
     );
 
-    let targetLaneOffset = THREE.MathUtils.clamp(
-      this.baseLaneOffset + this.overtakeOffset,
-      -safeLaneLimit,
-      safeLaneLimit,
-    );
+    let targetLaneOffset = THREE.MathUtils.clamp(this.overtakeOffset * 0.45, -safeLaneLimit, safeLaneLimit);
 
     if (edgeRatio > 0.36) {
       const recoveryStrength = THREE.MathUtils.clamp((edgeRatio - 0.36) / 0.34, 0, 1);
@@ -115,6 +111,7 @@ export class AIController {
     };
 
     this.car.update(deltaTime, this.currentControls, this.track);
+    this.#applyRacingLineAssist(deltaTime, progress, lookAhead);
     this.#recoverIfStuck(deltaTime, progress, lookAhead, edgeRatio);
 
     return this.currentControls;
@@ -198,6 +195,41 @@ export class AIController {
     }
 
     this.previousPosition.copy(this.car.group.position);
+  }
+
+  #applyRacingLineAssist(deltaTime, progress, lookAhead) {
+    const currentProgress = this.track.getProgressAtPosition(this.car.group.position, progress);
+    const laneInfo = this.#getLaneInfo(this.car.group.position, currentProgress);
+    const laneLimit = Math.max(this.#getUsableLaneLimit(), 0.001);
+    const edgeRatio = Math.abs(laneInfo.offset) / laneLimit;
+    const heading = this.#getHeadingAt(currentProgress + lookAhead * 0.9);
+    const assistStrength = THREE.MathUtils.clamp((edgeRatio - 0.28) / 0.48, 0, 1);
+
+    this.car.group.rotation.y = this.#dampAngle(
+      this.car.group.rotation.y,
+      heading,
+      2.2 + assistStrength * 8.5,
+      deltaTime,
+    );
+
+    if (edgeRatio > 0.46) {
+      const inward = laneInfo.center.clone().sub(this.car.group.position);
+      inward.y = 0;
+      const inwardDistance = inward.length();
+
+      if (inwardDistance > 0.001) {
+        inward.multiplyScalar(1 / inwardDistance);
+        const correctionStep = Math.min(inwardDistance, (0.65 + assistStrength * 2.1) * deltaTime);
+        this.car.group.position.addScaledVector(inward, correctionStep);
+
+        const outwardSpeed = this.car.velocity.dot(inward.clone().multiplyScalar(-1));
+        if (outwardSpeed > 0) {
+          this.car.velocity.addScaledVector(inward, outwardSpeed * 0.8);
+        }
+      }
+    }
+
+    this.car.trackProgress = currentProgress;
   }
 
   #getSteeringError(target) {

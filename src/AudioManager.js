@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 export class AudioManager {
   constructor() {
     this.context = null;
@@ -141,7 +143,7 @@ export class AudioManager {
 
     this.#updateEngine(player, controls);
     this.#updateEnginePosition(player.group.position);
-    this.#updateAiEngines(aiRacers);
+    this.#updateAiEngines(aiRacers, player.group.position);
     this.#detectSoftCollisions(player, aiRacers);
   }
 
@@ -257,7 +259,7 @@ export class AudioManager {
     this.engineRumble.gain.gain.setTargetAtTime(rumbleGain, now, 0.08);
   }
 
-  #updateAiEngines(aiRacers) {
+  #updateAiEngines(aiRacers, listenerPosition) {
     const now = this.context.currentTime;
     const activeCars = new Set();
 
@@ -267,7 +269,7 @@ export class AudioManager {
 
       activeCars.add(car);
       const loop = this.#getAiEngineLoop(car);
-      this.#updateAiEngineLoop(loop, car, racer.controller?.currentControls, now);
+      this.#updateAiEngineLoop(loop, car, racer.controller?.currentControls, now, listenerPosition);
     }
 
     for (const [car, loop] of this.aiEngineLoops) {
@@ -288,7 +290,12 @@ export class AudioManager {
     const loopGain = this.context.createGain();
     const undertoneGain = this.context.createGain();
     const filter = this.context.createBiquadFilter();
-    const panner = this.#createPanner(car.group.position);
+    const panner = this.#createPanner(car.group.position, {
+      distanceModel: "exponential",
+      refDistance: 8,
+      maxDistance: 95,
+      rolloffFactor: 2.2,
+    });
     const detune = ((this.aiEngineLoops.size % 5) - 2) * 7;
 
     oscillator.type = "sawtooth";
@@ -314,7 +321,7 @@ export class AudioManager {
     return loop;
   }
 
-  #updateAiEngineLoop(loop, car, controls, now) {
+  #updateAiEngineLoop(loop, car, controls, now, listenerPosition) {
     const profile = car.engineProfile ?? {};
     const speedRatio = Math.min(Math.abs(car.speed) / car.maxForwardSpeed, 1);
     const load = controls?.throttle ? 0.92 : controls?.brakeReverse ? 0.36 : 0.52;
@@ -328,7 +335,10 @@ export class AudioManager {
       idleHz +
       revRatio * maxHz +
       Math.sin(now * (15 + revRatio * 28)) * roughness * 0.45;
-    const gain = (0.018 + load * 0.034 + speedRatio * 0.03) * (profile.gain ?? 1);
+    const baseGain = (0.018 + load * 0.034 + speedRatio * 0.03) * (profile.gain ?? 1);
+    const distance = listenerPosition ? car.group.position.distanceTo(listenerPosition) : 0;
+    const proximityGain = 1 - THREE.MathUtils.smoothstep(distance, 24, 118);
+    const gain = baseGain * proximityGain;
 
     loop.oscillator.frequency.setTargetAtTime(baseHz, now, 0.06);
     loop.undertone.frequency.setTargetAtTime(baseHz * 0.5, now, 0.08);
@@ -372,13 +382,13 @@ export class AudioManager {
     oscillator.stop(now + duration + 0.02);
   }
 
-  #createPanner(position = { x: 0, y: 0, z: 0 }) {
+  #createPanner(position = { x: 0, y: 0, z: 0 }, options = {}) {
     const panner = this.context.createPanner();
     panner.panningModel = "HRTF";
-    panner.distanceModel = "linear";
-    panner.refDistance = 12;
-    panner.maxDistance = 180;
-    panner.rolloffFactor = 0.55;
+    panner.distanceModel = options.distanceModel ?? "linear";
+    panner.refDistance = options.refDistance ?? 12;
+    panner.maxDistance = options.maxDistance ?? 180;
+    panner.rolloffFactor = options.rolloffFactor ?? 0.55;
     this.#setAudioPosition(panner, position);
     return panner;
   }
