@@ -3,21 +3,21 @@ import * as THREE from "three";
 const DIFFICULTY_SETTINGS = {
   Easy: {
     targetSpeed: 32,
-    lookAhead: 0.018,
+    lookAhead: 0.014,
     reaction: 0.78,
     aggression: 0.45,
     recoverySeconds: 3.2,
   },
   Medium: {
     targetSpeed: 42,
-    lookAhead: 0.022,
+    lookAhead: 0.018,
     reaction: 0.92,
     aggression: 0.68,
     recoverySeconds: 2.5,
   },
   Hard: {
     targetSpeed: 52,
-    lookAhead: 0.026,
+    lookAhead: 0.021,
     reaction: 1.08,
     aggression: 0.86,
     recoverySeconds: 1.9,
@@ -37,6 +37,7 @@ export class AIController {
     this.overtakeOffset = 0;
     this.startProgress = startProgress;
     this.stuckTimer = 0;
+    this.smoothedSteering = 0;
     this.previousPosition = new THREE.Vector3();
     this.currentControls = this.#createEmptyControls();
   }
@@ -45,6 +46,7 @@ export class AIController {
     this.baseLaneOffset = laneOffset;
     this.overtakeOffset = 0;
     this.stuckTimer = 0;
+    this.smoothedSteering = 0;
 
     const position = this.#getOffsetTrackPoint(progress, laneOffset);
     const heading = this.#getHeadingAt(progress);
@@ -59,7 +61,7 @@ export class AIController {
     const traffic = this.#calculateTraffic(nearbyCars);
     const speedRatio = THREE.MathUtils.clamp(Math.abs(this.car.speed) / this.car.maxForwardSpeed, 0, 1);
     const roadTightness = THREE.MathUtils.clamp((18 - this.track.roadWidth) / 8, 0, 1);
-    const lookAhead = this.settings.lookAhead + speedRatio * THREE.MathUtils.lerp(0.014, 0.008, roadTightness);
+    const lookAhead = this.settings.lookAhead + speedRatio * THREE.MathUtils.lerp(0.007, 0.004, roadTightness);
     const laneLimit = this.#getUsableLaneLimit();
     const safeLaneLimit = laneLimit * THREE.MathUtils.lerp(0.6, 0.42, roadTightness);
     const laneInfo = this.#getLaneInfo(this.car.group.position, progress);
@@ -97,14 +99,15 @@ export class AIController {
       (this.car.speed > desiredSpeed + 5 && this.car.speed > 12) ||
       (Math.abs(steeringError) > 1.05 && this.car.speed > 18);
     const canBrakeWithoutReversing = this.car.speed > 5.5;
-    const steeringInput = THREE.MathUtils.clamp(steeringError * 1.65, -1, 1);
+    const rawSteering = THREE.MathUtils.clamp(steeringError * 1.05, -0.82, 0.82);
+    this.smoothedSteering = THREE.MathUtils.damp(this.smoothedSteering, rawSteering, 3.15, deltaTime);
 
     this.currentControls = {
       throttle: this.car.speed < desiredSpeed || this.stuckTimer > 0.35,
       brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
-      steering: steeringInput,
-      steeringAssist: 1.32,
+      steering: this.smoothedSteering,
+      steeringAssist: edgeRatio > 0.72 ? 1.16 : 1.04,
       steerLeft: steeringError > 0.08,
       steerRight: steeringError < -0.08,
       resetPressed: false,
@@ -172,8 +175,8 @@ export class AIController {
 
     if (this.stuckTimer > 0.45 || edgeRatio > 0.82) {
       const heading = this.#getHeadingAt(progress + lookAhead);
-      this.car.group.rotation.y = this.#dampAngle(this.car.group.rotation.y, heading, 7, deltaTime);
-      this.car.velocity.addScaledVector(this.#getForwardVector(), 9 * deltaTime);
+      this.car.group.rotation.y = this.#dampAngle(this.car.group.rotation.y, heading, 3.2, deltaTime);
+      this.car.velocity.addScaledVector(this.#getForwardVector(), 7 * deltaTime);
     }
 
     if (this.stuckTimer > this.settings.recoverySeconds) {
@@ -203,23 +206,25 @@ export class AIController {
     const laneLimit = Math.max(this.#getUsableLaneLimit(), 0.001);
     const edgeRatio = Math.abs(laneInfo.offset) / laneLimit;
     const heading = this.#getHeadingAt(currentProgress + lookAhead * 0.9);
-    const assistStrength = THREE.MathUtils.clamp((edgeRatio - 0.28) / 0.48, 0, 1);
+    const assistStrength = THREE.MathUtils.clamp((edgeRatio - 0.44) / 0.46, 0, 1);
 
-    this.car.group.rotation.y = this.#dampAngle(
-      this.car.group.rotation.y,
-      heading,
-      2.2 + assistStrength * 8.5,
-      deltaTime,
-    );
+    if (edgeRatio > 0.58) {
+      this.car.group.rotation.y = this.#dampAngle(
+        this.car.group.rotation.y,
+        heading,
+        1.4 + assistStrength * 3.2,
+        deltaTime,
+      );
+    }
 
-    if (edgeRatio > 0.46) {
+    if (edgeRatio > 0.52) {
       const inward = laneInfo.center.clone().sub(this.car.group.position);
       inward.y = 0;
       const inwardDistance = inward.length();
 
       if (inwardDistance > 0.001) {
         inward.multiplyScalar(1 / inwardDistance);
-        const correctionStep = Math.min(inwardDistance, (0.65 + assistStrength * 2.1) * deltaTime);
+        const correctionStep = Math.min(inwardDistance, (0.4 + assistStrength * 1.35) * deltaTime);
         this.car.group.position.addScaledVector(inward, correctionStep);
 
         const outwardSpeed = this.car.velocity.dot(inward.clone().multiplyScalar(-1));

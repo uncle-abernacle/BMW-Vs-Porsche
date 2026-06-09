@@ -38,7 +38,7 @@ export class Car {
     this.lastSurfaceCorrectionStrength = 0;
     this.roadPitch = 0;
     this.roadRoll = 0;
-    this.rideHeight = 0.18;
+    this.rideHeight = 0.32;
     this.trackProgress = 0;
     this.velocity = new THREE.Vector3();
 
@@ -286,14 +286,17 @@ export class Car {
     const surface = track.getRoadSurfaceAtPosition?.(this.group.position, this.trackProgress);
     this.trackProgress = surface?.progress ?? this.trackProgress;
     const wheelFit = surface ? this.#sampleWheelContact(track, surface.progress) : null;
+    const turnClearance = Math.abs(this.steerAmount) * Math.min(Math.abs(this.speed) / this.maxForwardSpeed, 1) * 0.16;
     const targetHeight =
-      (wheelFit?.height ?? surface?.height ?? track.getRoadHeightAtPosition(this.group.position)) + this.rideHeight;
+      (wheelFit?.height ?? surface?.height ?? track.getRoadHeightAtPosition(this.group.position)) +
+      this.rideHeight +
+      turnClearance;
     this.group.position.y =
       deltaTime <= 0 ? targetHeight : THREE.MathUtils.damp(this.group.position.y, targetHeight, 35, deltaTime);
-    const targetPitch = THREE.MathUtils.clamp(surface?.pitch ?? 0, -0.18, 0.18);
-    const targetRoll = THREE.MathUtils.clamp(wheelFit?.roll ?? surface?.roll ?? 0, -0.12, 0.12);
-    this.roadPitch = THREE.MathUtils.damp(this.roadPitch, targetPitch, 11, deltaTime);
-    this.roadRoll = THREE.MathUtils.damp(this.roadRoll, targetRoll, 10, deltaTime);
+    const targetPitch = THREE.MathUtils.clamp(surface?.pitch ?? 0, -0.3, 0.3);
+    const targetRoll = THREE.MathUtils.clamp(wheelFit?.roll ?? surface?.roll ?? 0, -0.16, 0.16);
+    this.roadPitch = THREE.MathUtils.damp(this.roadPitch, targetPitch, 14, deltaTime);
+    this.roadRoll = THREE.MathUtils.damp(this.roadRoll, targetRoll, 11, deltaTime);
   }
 
   #sampleWheelContact(track, progress) {
@@ -325,14 +328,14 @@ export class Car {
   }
 
   #tiltBody(deltaTime, speedRatio, lateralSpeed) {
-    const corneringRoll = this.steerAmount * speedRatio * 0.11;
-    const driftRoll = THREE.MathUtils.clamp(lateralSpeed / 58, -0.055, 0.055);
-    const targetRoll = THREE.MathUtils.clamp(this.roadRoll + corneringRoll + driftRoll, -0.18, 0.18);
-    const dynamicPitch = THREE.MathUtils.clamp(-this.speed / this.maxForwardSpeed, -0.08, 0.065);
+    const corneringRoll = this.steerAmount * speedRatio * 0.085;
+    const driftRoll = THREE.MathUtils.clamp(lateralSpeed / 64, -0.045, 0.045);
+    const targetRoll = THREE.MathUtils.clamp(this.roadRoll + corneringRoll + driftRoll, -0.22, 0.22);
+    const dynamicPitch = THREE.MathUtils.clamp(-this.speed / this.maxForwardSpeed, -0.035, 0.035);
     const targetPitch = this.roadPitch + dynamicPitch;
 
-    this.group.rotation.z = THREE.MathUtils.damp(this.group.rotation.z, targetRoll, 7, deltaTime);
-    this.group.rotation.x = THREE.MathUtils.damp(this.group.rotation.x, targetPitch, 6, deltaTime);
+    this.group.rotation.z = THREE.MathUtils.damp(this.group.rotation.z, targetRoll, 8, deltaTime);
+    this.group.rotation.x = THREE.MathUtils.damp(this.group.rotation.x, targetPitch, 9, deltaTime);
   }
 
   #buildModel(bodyColor, stripeColor) {
