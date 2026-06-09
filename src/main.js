@@ -297,6 +297,66 @@ function updateRival(deltaTime) {
   }
 }
 
+function resolveCarCollisions() {
+  const cars = [player, ...aiRacers.map((racer) => racer.car)].filter(Boolean);
+
+  for (let i = 0; i < cars.length; i += 1) {
+    for (let j = i + 1; j < cars.length; j += 1) {
+      const carA = cars[i];
+      const carB = cars[j];
+      const offset = carA.group.position.clone().sub(carB.group.position);
+      offset.y = 0;
+      const distance = offset.length();
+      const minimumDistance = getCollisionRadius(carA) + getCollisionRadius(carB);
+
+      if (distance >= minimumDistance) {
+        continue;
+      }
+
+      const normal = distance > 0.001 ? offset.multiplyScalar(1 / distance) : new THREE.Vector3(1, 0, 0);
+      const overlap = minimumDistance - distance;
+      carA.group.position.addScaledVector(normal, overlap * 0.5);
+      carB.group.position.addScaledVector(normal, -overlap * 0.5);
+
+      const relativeVelocity = carA.velocity.clone().sub(carB.velocity);
+      const closingSpeed = relativeVelocity.dot(normal);
+
+      if (closingSpeed < 0) {
+        const impulse = -closingSpeed * 0.58;
+        carA.velocity.addScaledVector(normal, impulse);
+        carB.velocity.addScaledVector(normal, -impulse);
+      }
+
+      carA.velocity.multiplyScalar(0.985);
+      carB.velocity.multiplyScalar(0.985);
+      pullCarInsideRoad(carA);
+      pullCarInsideRoad(carB);
+
+      if (carA === player || carB === player) {
+        audio.playCollision(player.group.position, THREE.MathUtils.clamp(overlap / 3.5, 0.35, 1));
+      }
+    }
+  }
+}
+
+function getCollisionRadius(car) {
+  return Math.max(car.design.width * 0.64, car.design.length * 0.34);
+}
+
+function pullCarInsideRoad(car) {
+  const correction = track.getSurfaceCorrection(car.group.position, car.trackProgress, car.design.width * 0.58);
+
+  if (correction) {
+    car.group.position.addScaledVector(correction.direction, correction.strength);
+    car.velocity.multiplyScalar(correction.speedMultiplier);
+    car.trackProgress = correction.progress ?? car.trackProgress;
+  }
+
+  const surface = track.getRoadSurfaceAtPosition(car.group.position, car.trackProgress);
+  car.group.position.y = surface.height;
+  car.trackProgress = surface.progress ?? car.trackProgress;
+}
+
 function animate() {
   requestAnimationFrame(animate);
 
@@ -352,6 +412,7 @@ function animate() {
 
   player.update(deltaTime, controls, track);
   updateRival(deltaTime);
+  resolveCarCollisions();
   updateRaceProgress(deltaTime);
   const racePosition = calculateRacePosition();
   cameraController.update(deltaTime, {
@@ -390,6 +451,7 @@ function animate() {
 function finishRace() {
   raceFinished = true;
   raceStarted = false;
+  audio.silenceRaceAudio();
   document.querySelector("#hud").classList.add("is-hidden");
 
   if (activeMode === "championship") {

@@ -10,8 +10,6 @@ export class AudioManager {
     this.engineFilter = null;
     this.engineRumble = null;
     this.enginePanner = null;
-    this.squealOscillator = null;
-    this.squealGain = null;
     this.initialized = false;
     this.muted = false;
     this.paused = false;
@@ -52,6 +50,14 @@ export class AudioManager {
     if (paused) {
       this.#silenceLiveLoops();
     }
+  }
+
+  silenceRaceAudio() {
+    if (!this.initialized) {
+      return;
+    }
+
+    this.#silenceLiveLoops();
   }
 
   playMenuMove() {
@@ -101,7 +107,6 @@ export class AudioManager {
 
     this.#updateListener(camera);
     this.#updateEngine(player, controls);
-    this.#updateTireSqueal(player, controls);
     this.#updateEnginePosition(player.group.position);
     this.#detectSoftCollisions(player, aiRacers);
   }
@@ -123,7 +128,6 @@ export class AudioManager {
     this.masterGain.connect(this.context.destination);
 
     this.#createEngineLoop();
-    this.#createSquealLoop();
     this.#applyVolumes();
     this.initialized = true;
   }
@@ -176,20 +180,6 @@ export class AudioManager {
     };
   }
 
-  #createSquealLoop() {
-    const oscillator = this.context.createOscillator();
-    const gain = this.context.createGain();
-
-    oscillator.type = "square";
-    oscillator.frequency.value = 1220;
-    gain.gain.value = 0.0001;
-    oscillator.connect(gain).connect(this.sfxGain);
-    oscillator.start();
-
-    this.squealOscillator = oscillator;
-    this.squealGain = gain;
-  }
-
   #updateEngine(player, controls) {
     const now = this.context.currentTime;
 
@@ -226,22 +216,6 @@ export class AudioManager {
     this.engineFilter.frequency.setTargetAtTime(filterFrequency, now, 0.08);
     this.engineRumble.oscillator.frequency.setTargetAtTime(rumbleFrequency, now, 0.08);
     this.engineRumble.gain.gain.setTargetAtTime(rumbleGain, now, 0.08);
-  }
-
-  #updateTireSqueal(player) {
-    const now = this.context.currentTime;
-
-    if (this.paused) {
-      this.squealGain.gain.setTargetAtTime(0.0001, now, 0.025);
-      return;
-    }
-
-    const drift = Math.min(Math.abs(player.driftAmount), 1);
-    const speedRatio = Math.min(Math.abs(player.speed) / 30, 1);
-    const targetGain = drift > 0.38 ? drift * speedRatio * 0.11 : 0.0001;
-
-    this.squealGain.gain.setTargetAtTime(Math.max(targetGain, 0.0001), now, 0.04);
-    this.squealOscillator.frequency.setTargetAtTime(980 + drift * 620, now, 0.04);
   }
 
   #detectSoftCollisions(player, aiRacers) {
@@ -323,7 +297,6 @@ export class AudioManager {
     const now = this.context.currentTime;
     this.engineLoopGain?.gain.setTargetAtTime(0.0001, now, 0.025);
     this.engineRumble?.gain.gain.setTargetAtTime(0.0001, now, 0.025);
-    this.squealGain?.gain.setTargetAtTime(0.0001, now, 0.025);
   }
 
   #applyVolumes() {

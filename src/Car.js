@@ -410,10 +410,18 @@ export class Car {
     hoodStripe.renderOrder = 8;
     this.group.add(hoodStripe);
 
+    const bodyTopY = lowerBody.position.y + height * 0.5;
     const spoiler = new THREE.Mesh(new THREE.BoxGeometry(spoilerWidth, 0.18, 0.45), stripeMaterial);
-    spoiler.position.set(0, lowerBody.position.y + height * 0.75, length * 0.48);
+    spoiler.position.set(0, bodyTopY + 0.22, length * 0.48);
     spoiler.castShadow = true;
     this.group.add(spoiler);
+
+    for (const side of [-1, 1]) {
+      const spoilerPost = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.3, 0.16), stripeMaterial);
+      spoilerPost.position.set(side * spoilerWidth * 0.32, bodyTopY + 0.08, length * 0.44);
+      spoilerPost.castShadow = true;
+      this.group.add(spoilerPost);
+    }
 
     const frontLightLeft = new THREE.Mesh(new THREE.BoxGeometry(width * 0.28, 0.18, 0.08), lightMaterial);
     frontLightLeft.position.set(-width * 0.23, lowerBody.position.y + height * 0.12, -length * 0.51);
@@ -465,17 +473,17 @@ export class Car {
 
       const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.18, 0.38), glassMaterial);
       mirror.position.set(
-        side * (cabinWidth * 0.5 + 0.18),
-        cabin.position.y + cabinHeight * 0.02,
+        side * (cabinWidth * 0.5 + 0.13),
+        cabin.position.y - cabinHeight * 0.04,
         cabin.position.z - cabinLength * 0.22,
       );
       mirror.castShadow = true;
       this.group.add(mirror);
 
-      const mirrorArm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.07, 0.18), glassMaterial);
+      const mirrorArm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.2), glassMaterial);
       mirrorArm.position.set(
-        side * (cabinWidth * 0.5 + 0.04),
-        cabin.position.y - cabinHeight * 0.02,
+        side * (cabinWidth * 0.5 + 0.02),
+        cabin.position.y - cabinHeight * 0.06,
         cabin.position.z - cabinLength * 0.21,
       );
       mirrorArm.castShadow = true;
@@ -496,9 +504,6 @@ export class Car {
     this.#addWheel(-wheelX, 0.55, wheelZ, tireMaterial, rimMaterial);
     this.#addWheel(wheelX, 0.55, wheelZ, tireMaterial, rimMaterial);
 
-    const namePlate = this.#makeNamePlate();
-    namePlate.position.set(0, 2.35 + cabinHeight * 0.2, 0);
-    this.group.add(namePlate);
   }
 
   #addWheel(x, y, z, tireMaterial, rimMaterial) {
@@ -517,34 +522,5 @@ export class Car {
 
     this.wheels.push(wheelGroup);
     this.group.add(wheelGroup);
-  }
-
-  #makeNamePlate() {
-    // Canvas text is converted into a texture so the starter game can label
-    // vehicles without loading image files or font assets.
-    const canvas = document.createElement("canvas");
-    canvas.width = 256;
-    canvas.height = 64;
-    const context = canvas.getContext("2d");
-
-    context.fillStyle = "rgba(0, 0, 0, 0.72)";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "#ffffff";
-    context.font = "700 32px Arial";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(this.name, canvas.width / 2, canvas.height / 2);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      depthWrite: false,
-    });
-    const sprite = new THREE.Sprite(material);
-    sprite.scale.set(4, 1, 1);
-    return sprite;
   }
 }
