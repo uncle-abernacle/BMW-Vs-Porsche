@@ -3,21 +3,21 @@ import * as THREE from "three";
 const DIFFICULTY_SETTINGS = {
   Easy: {
     targetSpeed: 32,
-    lookAhead: 0.026,
+    lookAhead: 0.034,
     reaction: 0.78,
     aggression: 0.45,
     recoverySeconds: 3.2,
   },
   Medium: {
     targetSpeed: 42,
-    lookAhead: 0.034,
+    lookAhead: 0.044,
     reaction: 0.92,
     aggression: 0.68,
     recoverySeconds: 2.5,
   },
   Hard: {
     targetSpeed: 52,
-    lookAhead: 0.044,
+    lookAhead: 0.052,
     reaction: 1.08,
     aggression: 0.86,
     recoverySeconds: 1.9,
@@ -60,6 +60,7 @@ export class AIController {
     const speedRatio = THREE.MathUtils.clamp(Math.abs(this.car.speed) / this.car.maxForwardSpeed, 0, 1);
     const lookAhead = this.settings.lookAhead + speedRatio * 0.026;
     const laneLimit = this.#getUsableLaneLimit();
+    const safeLaneLimit = laneLimit * 0.72;
     const laneInfo = this.#getLaneInfo(this.car.group.position, progress);
     const edgeRatio = Math.abs(laneInfo.offset) / Math.max(laneLimit, 0.001);
 
@@ -70,20 +71,20 @@ export class AIController {
       deltaTime,
     );
 
-    let targetLaneOffset = this.#clampLaneOffset(this.baseLaneOffset + this.overtakeOffset);
+    let targetLaneOffset = THREE.MathUtils.clamp(
+      this.baseLaneOffset + this.overtakeOffset,
+      -safeLaneLimit,
+      safeLaneLimit,
+    );
 
-    if (edgeRatio > 0.68) {
-      const recoveryStrength = THREE.MathUtils.clamp((edgeRatio - 0.68) / 0.32, 0, 1);
-      targetLaneOffset = THREE.MathUtils.lerp(
-        targetLaneOffset,
-        -Math.sign(laneInfo.offset) * laneLimit * 0.28,
-        recoveryStrength,
-      );
+    if (edgeRatio > 0.48) {
+      const recoveryStrength = THREE.MathUtils.clamp((edgeRatio - 0.48) / 0.34, 0, 1);
+      targetLaneOffset = THREE.MathUtils.lerp(targetLaneOffset, 0, recoveryStrength);
     }
 
     const target = this.#getOffsetTrackPoint(progress + lookAhead, targetLaneOffset);
     const steeringError = this.#getSteeringError(target);
-    const edgeSpeedMultiplier = edgeRatio > 0.74 ? THREE.MathUtils.lerp(1, 0.56, Math.min((edgeRatio - 0.74) / 0.26, 1)) : 1;
+    const edgeSpeedMultiplier = edgeRatio > 0.6 ? THREE.MathUtils.lerp(1, 0.48, Math.min((edgeRatio - 0.6) / 0.3, 1)) : 1;
     const steeringSpeedMultiplier = Math.abs(steeringError) > 0.5 ? THREE.MathUtils.lerp(1, 0.68, Math.min(Math.abs(steeringError), 1)) : 1;
     const desiredSpeed = this.settings.targetSpeed * traffic.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier;
     const shouldBrake = this.car.speed > desiredSpeed || Math.abs(steeringError) > 0.68 || edgeRatio > 0.84;
@@ -132,13 +133,13 @@ export class AIController {
       }
 
       const passDirection = sideDistance >= 0 ? -1 : 1;
-      laneShift += passDirection * THREE.MathUtils.lerp(0.35, 1.35, this.settings.aggression);
+      laneShift += passDirection * THREE.MathUtils.lerp(0.12, 0.5, this.settings.aggression);
       speedMultiplier = Math.min(speedMultiplier, THREE.MathUtils.clamp(forwardDistance / 15, 0.62, 0.96));
       blocked = blocked || forwardDistance < 5.5;
     }
 
     return {
-      laneShift: THREE.MathUtils.clamp(laneShift, -2, 2),
+      laneShift: THREE.MathUtils.clamp(laneShift, -0.75, 0.75),
       speedMultiplier,
       blocked,
     };
@@ -206,7 +207,7 @@ export class AIController {
   #getUsableLaneLimit() {
     const halfRoad = this.track.roadWidth * 0.5;
     const carHalfWidth = this.car.design.width * 0.58;
-    return Math.max(1.8, halfRoad - carHalfWidth - 0.9);
+    return Math.max(1.5, halfRoad - carHalfWidth - 1.65);
   }
 
   #clampLaneOffset(laneOffset) {

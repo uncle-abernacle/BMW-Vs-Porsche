@@ -271,7 +271,7 @@ function resetAiRacers() {
 }
 
 function getAiLaneOffset(index) {
-  const packLaneWidth = Math.min(2.4, track.roadWidth * 0.12);
+  const packLaneWidth = Math.min(1.4, track.roadWidth * 0.075);
   return index % 2 === 0 ? packLaneWidth : -packLaneWidth;
 }
 
@@ -420,6 +420,12 @@ function animate() {
   updateRival(deltaTime);
   resolveCarCollisions();
   updateRaceProgress(deltaTime);
+
+  if (raceFinished || !raceStarted) {
+    renderer.render(scene, camera);
+    return;
+  }
+
   const racePosition = calculateRacePosition();
   cameraController.update(deltaTime, {
     speed: player.speed,

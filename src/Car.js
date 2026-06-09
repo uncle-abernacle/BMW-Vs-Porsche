@@ -99,7 +99,6 @@ export class Car {
     const brakeOrReverse = controls.brakeReverse ? 1 : 0;
     const handbrake = controls.handbrake ? 1 : 0;
     const steeringInput = controls.steerLeft ? 1 : controls.steerRight ? -1 : 0;
-    this.steerAmount = THREE.MathUtils.damp(this.steerAmount, steeringInput, 9, deltaTime);
 
     const forward = this.#getForwardVector();
     const right = this.#getRightVector();
@@ -107,6 +106,8 @@ export class Car {
     const lateralSpeed = this.velocity.dot(right);
     const speedMagnitude = this.velocity.length();
     const speedRatio = THREE.MathUtils.clamp(speedMagnitude / this.maxForwardSpeed, 0, 1);
+    const steeringSmoothness = THREE.MathUtils.lerp(4.8, 6.4, speedRatio);
+    this.steerAmount = THREE.MathUtils.damp(this.steerAmount, steeringInput, steeringSmoothness, deltaTime);
 
     this.#applyDriveForces(deltaTime, {
       throttle,
@@ -126,11 +127,11 @@ export class Car {
 
     // Steering is strongest at arcade-racer speeds and fades at rest so the
     // vehicle does not spin like a turret before it starts moving.
-    const steerResponse = 0.2 + speedRatio * 0.9;
+    const steerResponse = 0.14 + speedRatio * 0.68;
     const reverseSteer = forwardSpeed >= -0.5 ? 1 : -1;
-    const driftYawBoost = 1 + this.driftAmount * 0.55;
-    this.group.rotation.y +=
-      this.steerAmount * this.turnRate * steerResponse * driftYawBoost * reverseSteer * deltaTime;
+    const driftYawBoost = 1 + this.driftAmount * 0.3;
+    const yawDelta = this.steerAmount * this.turnRate * steerResponse * driftYawBoost * reverseSteer * deltaTime;
+    this.group.rotation.y += THREE.MathUtils.clamp(yawDelta, -1.55 * deltaTime, 1.55 * deltaTime);
 
     this.#limitTopSpeed();
     this.group.position.addScaledVector(this.velocity, deltaTime);

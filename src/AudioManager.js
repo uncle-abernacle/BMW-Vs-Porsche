@@ -101,6 +101,10 @@ export class AudioManager {
   }
 
   playCollision(position, intensity = 1) {
+    if (this.paused) {
+      return;
+    }
+
     this.#ensureContext();
 
     const now = this.context.currentTime;
@@ -127,6 +131,12 @@ export class AudioManager {
     if (!this.initialized || !player) return;
 
     this.#updateListener(camera);
+
+    if (this.paused) {
+      this.#silenceLiveLoops();
+      return;
+    }
+
     this.#updateEngine(player, controls);
     this.#updateEnginePosition(player.group.position);
     this.#detectSoftCollisions(player, aiRacers);
@@ -324,6 +334,8 @@ export class AudioManager {
 
   #silenceLiveLoops() {
     const now = this.context.currentTime;
+    this.engineGain?.gain.cancelScheduledValues(now);
+    this.engineGain?.gain.setValueAtTime(0, now);
     this.engineLoopGain?.gain.cancelScheduledValues(now);
     this.engineLoopGain?.gain.setValueAtTime(0, now);
     this.engineRumble?.gain.gain.cancelScheduledValues(now);
