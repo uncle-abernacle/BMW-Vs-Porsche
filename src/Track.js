@@ -654,8 +654,8 @@ export class Track {
       roughness: 0.9,
       flatShading: true,
       polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
+      polygonOffsetFactor: -8,
+      polygonOffsetUnits: -8,
     });
 
     for (let i = 0; i < 20; i += 1) {
@@ -681,14 +681,14 @@ export class Track {
       mountain.castShadow = false;
       this.group.add(mountain);
 
-      const snowHeight = height * 0.24;
-      const snowRadius = mountainRadius * (snowHeight / height) * 1.06;
+      const snowHeight = height * 0.28;
+      const snowRadius = mountainRadius * (snowHeight / height) * 1.24;
       const mountainTopY = mountain.position.y + height * 0.5;
       const snow = new THREE.Mesh(new THREE.ConeGeometry(snowRadius, snowHeight, 6), snowMaterial);
-      snow.position.set(x, mountainTopY - snowHeight * 0.5 + 0.18, z);
-      snow.scale.z = 0.72;
+      snow.position.set(x, mountainTopY - snowHeight * 0.5 + 0.36, z);
+      snow.scale.z = 0.78;
       snow.rotation.y = mountain.rotation.y;
-      snow.renderOrder = 4;
+      snow.renderOrder = 12;
       this.group.add(snow);
     }
   }
