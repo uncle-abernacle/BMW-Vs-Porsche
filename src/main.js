@@ -280,8 +280,8 @@ function getAiStartProgress(index) {
 }
 
 function getAiLaneOffset(index) {
-  const gridLaneWidth = Math.min(1.15, track.roadWidth * 0.075);
-  return [-gridLaneWidth, gridLaneWidth, 0][index % 3];
+  const gridLaneWidth = Math.min(1.7, track.roadWidth * 0.11);
+  return [-gridLaneWidth, -gridLaneWidth * 0.45, gridLaneWidth * 0.45, gridLaneWidth, 0][index % 5];
 }
 
 function getAiGridPosition(index) {

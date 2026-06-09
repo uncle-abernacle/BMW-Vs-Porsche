@@ -74,7 +74,11 @@ export class AIController {
       deltaTime,
     );
 
-    let targetLaneOffset = THREE.MathUtils.clamp(this.overtakeOffset * 0.45, -safeLaneLimit, safeLaneLimit);
+    let targetLaneOffset = THREE.MathUtils.clamp(
+      this.baseLaneOffset * 0.55 + this.overtakeOffset * 0.45,
+      -safeLaneLimit,
+      safeLaneLimit,
+    );
 
     if (edgeRatio > 0.36) {
       const recoveryStrength = THREE.MathUtils.clamp((edgeRatio - 0.36) / 0.34, 0, 1);
@@ -90,20 +94,21 @@ export class AIController {
     const edgeSpeedMultiplier = edgeRatio > 0.48 ? THREE.MathUtils.lerp(1, 0.36, Math.min((edgeRatio - 0.48) / 0.34, 1)) : 1;
     const steeringSpeedMultiplier = Math.abs(steeringError) > 0.42 ? THREE.MathUtils.lerp(1, 0.62, Math.min(Math.abs(steeringError), 1)) : 1;
     const recoverySpeed = edgeRatio > 0.68 ? 11 : 0;
-    const desiredSpeed = Math.max(
-      18,
+    const cornerSpeed = Math.max(
+      22,
       recoverySpeed,
-      this.settings.targetSpeed * traffic.speedMultiplier * edgeSpeedMultiplier * steeringSpeedMultiplier,
+      this.settings.targetSpeed * edgeSpeedMultiplier * steeringSpeedMultiplier,
     );
+    const desiredSpeed = Math.max(cornerSpeed, this.car.maxForwardSpeed * 0.98);
     const shouldBrake =
-      (this.car.speed > desiredSpeed + 5 && this.car.speed > 12) ||
-      (Math.abs(steeringError) > 1.05 && this.car.speed > 18);
+      (this.car.speed > cornerSpeed + 6 && this.car.speed > 16 && (Math.abs(steeringError) > 0.92 || edgeRatio > 0.76)) ||
+      this.car.speed > this.car.maxForwardSpeed + 1.5;
     const canBrakeWithoutReversing = this.car.speed > 5.5;
     const rawSteering = THREE.MathUtils.clamp(steeringError * 1.05, -0.82, 0.82);
     this.smoothedSteering = THREE.MathUtils.damp(this.smoothedSteering, rawSteering, 3.15, deltaTime);
 
     this.currentControls = {
-      throttle: this.car.speed < desiredSpeed || this.stuckTimer > 0.35,
+      throttle: (this.car.speed < desiredSpeed && !shouldBrake) || this.stuckTimer > 0.35,
       brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
       steering: this.smoothedSteering,
@@ -126,7 +131,6 @@ export class AIController {
 
   #calculateTraffic(nearbyCars) {
     let laneShift = 0;
-    let speedMultiplier = 1;
     const passRoom = THREE.MathUtils.clamp((this.track.roadWidth - 14) / 12, 0, 1);
     const forward = this.#getForwardVector();
     const right = this.#getRightVector();
@@ -139,7 +143,6 @@ export class AIController {
       const sideDistance = offset.dot(right);
       const isAhead = forwardDistance > 0 && forwardDistance < 18;
       const isAdjacentTraffic = Math.abs(sideDistance) < 6.2;
-      const isSameLaneTraffic = Math.abs(sideDistance) < 3.4;
 
       if (!isAhead || !isAdjacentTraffic) {
         continue;
@@ -147,15 +150,10 @@ export class AIController {
 
       const passDirection = sideDistance >= 0 ? -1 : 1;
       laneShift += passDirection * THREE.MathUtils.lerp(0.08, 0.42, this.settings.aggression) * passRoom;
-
-      if (isSameLaneTraffic) {
-        speedMultiplier = Math.min(speedMultiplier, THREE.MathUtils.clamp(forwardDistance / 14, 0.82, 0.98));
-      }
     }
 
     return {
       laneShift: THREE.MathUtils.clamp(laneShift, -0.45, 0.45),
-      speedMultiplier,
     };
   }
 
