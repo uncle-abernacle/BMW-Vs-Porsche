@@ -20,6 +20,7 @@ export class ChampionshipManager {
       points: 0,
       wins: 0,
       lastPosition: null,
+      lastTime: "-",
     }));
   }
 
@@ -32,10 +33,10 @@ export class ChampionshipManager {
   }
 
   recordRace(results) {
-    const normalized = results.slice(0, POINTS_BY_POSITION.length).map((result, index) => ({
+    const normalized = results.map((result, index) => ({
       ...result,
       position: index + 1,
-      points: POINTS_BY_POSITION[index],
+      points: POINTS_BY_POSITION[index] ?? 0,
     }));
 
     for (const result of normalized) {
@@ -45,6 +46,7 @@ export class ChampionshipManager {
 
       standing.points += result.points;
       standing.lastPosition = result.position;
+      standing.lastTime = result.timeText ?? "-";
       if (result.position === 1) standing.wins += 1;
     }
 

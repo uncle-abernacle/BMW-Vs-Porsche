@@ -69,6 +69,17 @@ const championship = new ChampionshipManager();
 const TOTAL_RACE_CARS = 10;
 const AI_RACER_COUNT = TOTAL_RACE_CARS - 1;
 const AI_DIFFICULTY_SEQUENCE = ["Easy", "Medium", "Hard", "Medium", "Hard", "Easy", "Medium", "Hard", "Medium"];
+const FINISH_WAIT_LIMIT = 75;
+const EMPTY_CONTROLS = Object.freeze({
+  throttle: false,
+  brakeReverse: false,
+  handbrake: false,
+  steering: 0,
+  steeringAssist: 1,
+  steerLeft: false,
+  steerRight: false,
+  resetPressed: false,
+});
 let menu = null;
 const championshipOverlay = document.querySelector("#championship-overlay");
 const championshipKicker = document.querySelector("#championship-kicker");
@@ -94,6 +105,8 @@ let lapState = null;
 let activeMode = "quick-race";
 let playerVehicle = null;
 let raceFinished = false;
+let playerFinishTime = null;
+let finishWaitStartedAt = null;
 let paused = false;
 let selectedTrackId = "alpine-pass";
 let raceCountdownRemaining = 0;
@@ -179,6 +192,8 @@ function resetRace() {
   resetLapTiming();
   lapState = track.createLapState(activeMode === "practice" ? 0 : track.totalLaps);
   raceFinished = false;
+  playerFinishTime = null;
+  finishWaitStartedAt = null;
   raceCountdownRemaining = activeMode === "practice" ? 0 : 2.1;
   cameraController.snapToTarget();
 }
@@ -261,6 +276,7 @@ function createAiRacers(playerVehicleId, mode = activeMode) {
       car,
       controller,
       lapState: track.createLapState(),
+      finishTime: null,
       difficulty,
     };
   });
@@ -271,6 +287,7 @@ function createAiRacers(playerVehicleId, mode = activeMode) {
 function resetAiRacers() {
   aiRacers.forEach((racer, index) => {
     racer.lapState = track.createLapState();
+    racer.finishTime = null;
     racer.controller.reset(getAiStartProgress(index), getAiLaneOffset(index));
   });
 }
@@ -301,7 +318,9 @@ function updateRaceProgress(deltaTime) {
   elapsedRaceTime += deltaTime;
   const previousLap = lapState.currentLap;
   const wasFinished = lapState.finished;
-  track.updateLapProgress(player.group.position, lapState);
+  if (!lapState.finished) {
+    track.updateLapProgress(player.group.position, lapState);
+  }
   const completedLap = lapState.currentLap > previousLap || (!wasFinished && lapState.finished);
 
   if (completedLap) {
@@ -310,7 +329,12 @@ function updateRaceProgress(deltaTime) {
     lapStartedAt = elapsedRaceTime;
   }
 
-  if (activeMode !== "practice" && lapState.finished && !raceFinished) {
+  if (activeMode !== "practice" && !wasFinished && lapState.finished) {
+    playerFinishTime = elapsedRaceTime;
+    finishWaitStartedAt = elapsedRaceTime;
+  }
+
+  if (activeMode !== "practice" && lapState.finished && !raceFinished && areRaceResultsReady()) {
     finishRace();
   }
 }
@@ -319,10 +343,33 @@ function updateRival(deltaTime) {
   const allCars = [player, ...aiRacers.map((racer) => racer.car)].filter(Boolean);
 
   for (const racer of aiRacers) {
+    if (racer.lapState.finished) {
+      coastFinishedCar(racer.car, deltaTime);
+      continue;
+    }
+
+    const wasFinished = racer.lapState.finished;
     const nearbyCars = allCars.filter((car) => car !== racer.car);
     racer.controller.update(deltaTime, nearbyCars);
     track.updateLapProgress(racer.car.group.position, racer.lapState);
+
+    if (!wasFinished && racer.lapState.finished) {
+      racer.finishTime = elapsedRaceTime;
+    }
   }
+}
+
+function coastFinishedCar(car, deltaTime) {
+  car.update(deltaTime, EMPTY_CONTROLS, track);
+  car.velocity.multiplyScalar(Math.pow(0.08, deltaTime));
+}
+
+function areRaceResultsReady() {
+  if (aiRacers.every((racer) => racer.lapState.finished)) {
+    return true;
+  }
+
+  return elapsedRaceTime - (finishWaitStartedAt ?? elapsedRaceTime) >= FINISH_WAIT_LIMIT;
 }
 
 function resolveCarCollisions() {
@@ -332,31 +379,29 @@ function resolveCarCollisions() {
     for (let j = i + 1; j < cars.length; j += 1) {
       const carA = cars[i];
       const carB = cars[j];
-      const offset = carA.group.position.clone().sub(carB.group.position);
-      offset.y = 0;
-      const distance = offset.length();
-      const minimumDistance = getCollisionRadius(carA) + getCollisionRadius(carB);
+      const contact = getCollisionContact(carA, carB);
 
-      if (distance >= minimumDistance) {
+      if (!contact) {
         continue;
       }
 
-      const normal = distance > 0.001 ? offset.multiplyScalar(1 / distance) : new THREE.Vector3(1, 0, 0);
-      const overlap = minimumDistance - distance;
-      carA.group.position.addScaledVector(normal, overlap * 0.5);
-      carB.group.position.addScaledVector(normal, -overlap * 0.5);
+      const { normal, overlap, sideScrape } = contact;
+      const separation = sideScrape ? overlap * 0.38 : overlap * 0.5;
+      carA.group.position.addScaledVector(normal, separation);
+      carB.group.position.addScaledVector(normal, -separation);
 
       const relativeVelocity = carA.velocity.clone().sub(carB.velocity);
       const closingSpeed = relativeVelocity.dot(normal);
 
       if (closingSpeed < 0) {
-        const impulse = -closingSpeed * 0.58;
+        const impulse = -closingSpeed * (sideScrape ? 0.22 : 0.52);
         carA.velocity.addScaledVector(normal, impulse);
         carB.velocity.addScaledVector(normal, -impulse);
       }
 
-      carA.velocity.multiplyScalar(0.985);
-      carB.velocity.multiplyScalar(0.985);
+      const damping = sideScrape ? 0.998 : 0.988;
+      carA.velocity.multiplyScalar(damping);
+      carB.velocity.multiplyScalar(damping);
       pullCarInsideRoad(carA);
       pullCarInsideRoad(carB);
 
@@ -367,8 +412,71 @@ function resolveCarCollisions() {
   }
 }
 
-function getCollisionRadius(car) {
-  return Math.max(car.design.width * 0.64, car.design.length * 0.34);
+function getCollisionContact(carA, carB) {
+  const offset = carA.group.position.clone().sub(carB.group.position);
+  offset.y = 0;
+  const distance = offset.length();
+
+  if (distance < 0.001) {
+    return {
+      normal: new THREE.Vector3(1, 0, 0),
+      overlap: 0.5,
+      sideScrape: false,
+    };
+  }
+
+  const forwardA = getCarForward(carA);
+  const forwardB = getCarForward(carB);
+  const alignment = Math.abs(forwardA.dot(forwardB));
+
+  if (alignment > 0.55) {
+    const rightA = getCarRight(carA);
+    const longitudinal = offset.dot(forwardA);
+    const lateral = offset.dot(rightA);
+    const combinedLength = (carA.design.length + carB.design.length) * 0.39;
+    const combinedWidth = (carA.design.width + carB.design.width) * 0.41;
+    const longitudinalOverlap = combinedLength - Math.abs(longitudinal);
+    const lateralOverlap = combinedWidth - Math.abs(lateral);
+
+    if (longitudinalOverlap <= 0 || lateralOverlap <= 0) {
+      return null;
+    }
+
+    if (lateralOverlap < longitudinalOverlap) {
+      return {
+        normal: rightA.multiplyScalar(lateral >= 0 ? 1 : -1),
+        overlap: lateralOverlap,
+        sideScrape: true,
+      };
+    }
+
+    return {
+      normal: forwardA.multiplyScalar(longitudinal >= 0 ? 1 : -1),
+      overlap: longitudinalOverlap,
+      sideScrape: false,
+    };
+  }
+
+  const minimumDistance = Math.max(carA.design.width * 0.52, carA.design.length * 0.25) +
+    Math.max(carB.design.width * 0.52, carB.design.length * 0.25);
+
+  if (distance >= minimumDistance) {
+    return null;
+  }
+
+  return {
+    normal: offset.multiplyScalar(1 / distance),
+    overlap: minimumDistance - distance,
+    sideScrape: false,
+  };
+}
+
+function getCarForward(car) {
+  return new THREE.Vector3(-Math.sin(car.group.rotation.y), 0, -Math.cos(car.group.rotation.y));
+}
+
+function getCarRight(car) {
+  return new THREE.Vector3(Math.cos(car.group.rotation.y), 0, -Math.sin(car.group.rotation.y));
 }
 
 function pullCarInsideRoad(car) {
@@ -438,7 +546,10 @@ function animate() {
     return;
   }
 
-  player.update(deltaTime, controls, track);
+  player.update(deltaTime, lapState.finished ? EMPTY_CONTROLS : controls, track);
+  if (lapState.finished) {
+    player.velocity.multiplyScalar(Math.pow(0.08, deltaTime));
+  }
   updateRival(deltaTime);
   resolveCarCollisions();
   updateRaceProgress(deltaTime);
@@ -470,12 +581,12 @@ function animate() {
     track,
     playerPosition: player.group.position,
     rivalPositions: aiRacers.map((racer) => racer.car.group.position),
-    checkpointName: lapState.lastCheckpointName,
+    checkpointName: lapState.finished ? "Waiting for finishers" : lapState.lastCheckpointName,
   });
   audio.update({
     player,
     camera,
-    controls,
+    controls: lapState.finished ? EMPTY_CONTROLS : controls,
     aiRacers,
   });
 
@@ -501,15 +612,36 @@ function getRaceResults() {
   const racers = [
     {
       name: "Player",
+      finished: lapState.finished,
+      finishTime: playerFinishTime,
       score: (lapState.currentLap - 1) + track.getProgressAtPosition(player.group.position, player.trackProgress),
     },
     ...aiRacers.map((racer) => ({
       name: racer.car.name,
+      finished: racer.lapState.finished,
+      finishTime: racer.finishTime,
       score: racer.controller.getProgressScore(racer.lapState),
     })),
   ];
 
-  return racers.sort((a, b) => b.score - a.score);
+  return racers.sort(compareRaceResults).map((result, index) => ({
+    ...result,
+    rank: index + 1,
+    lastPosition: index + 1,
+    timeText: formatRaceTime(result.finishTime),
+  }));
+}
+
+function compareRaceResults(a, b) {
+  if (a.finished && b.finished) {
+    return (a.finishTime ?? Infinity) - (b.finishTime ?? Infinity);
+  }
+
+  if (a.finished !== b.finished) {
+    return a.finished ? -1 : 1;
+  }
+
+  return b.score - a.score;
 }
 
 function showChampionshipResults(snapshot) {
@@ -538,16 +670,14 @@ function showChampionshipResults(snapshot) {
 function showSingleRaceResults() {
   const results = getRaceResults().map((result, index) => ({
     ...result,
-    rank: index + 1,
-    lastPosition: index + 1,
-    points: [10, 8, 6, 4, 2, 1][index],
+    points: [10, 8, 6, 4, 2, 1][index] ?? 0,
   }));
 
   championshipOverlay.classList.remove("is-hidden");
   trophyCeremony.classList.add("is-hidden");
   championshipKicker.textContent = "Race Complete";
   championshipTitle.textContent = "Results";
-  championshipSummary.textContent = "Final order for this event.";
+  championshipSummary.textContent = "Final order and race completion times.";
   championshipContinue.textContent = "Main Menu";
   renderStandings(results);
   championshipContinue.onclick = () => {
@@ -582,7 +712,8 @@ function renderStandings(standings) {
           <td>${entry.rank}</td>
           <td>${entry.name}</td>
           <td>${entry.lastPosition ?? "-"}</td>
-          <td>${entry.points}</td>
+          <td>${entry.timeText ?? entry.lastTime ?? "-"}</td>
+          <td>${entry.points ?? 0}</td>
         </tr>
       `,
     )
@@ -605,6 +736,20 @@ function getLapDelta() {
   }
 
   return getCurrentLapTime() - bestLapTime;
+}
+
+function formatRaceTime(totalSeconds) {
+  if (!Number.isFinite(totalSeconds)) {
+    return "DNF";
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  const milliseconds = Math.floor((totalSeconds % 1) * 1000);
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(
+    milliseconds,
+  ).padStart(3, "0")}`;
 }
 
 function calculateRacePosition() {

@@ -780,8 +780,9 @@ body {
 }
 
 .championship-table td {
-  font-size: clamp(18px, 3vw, 26px);
+  font-size: clamp(15px, 2.35vw, 24px);
   font-weight: 900;
+  white-space: nowrap;
 }
 
 .championship-table tr:first-child td {

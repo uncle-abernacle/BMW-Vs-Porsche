@@ -65,7 +65,7 @@ export class AIController {
     const traffic = this.#calculateTraffic(nearbyCars);
     const speedRatio = THREE.MathUtils.clamp(Math.abs(this.car.speed) / this.car.maxForwardSpeed, 0, 1);
     const roadTightness = THREE.MathUtils.clamp((18 - this.track.roadWidth) / 8, 0, 1);
-    const lookAhead = this.settings.lookAhead + speedRatio * THREE.MathUtils.lerp(0.007, 0.004, roadTightness);
+    const lookAhead = this.settings.lookAhead + speedRatio * THREE.MathUtils.lerp(0.005, 0.002, roadTightness);
     const laneLimit = this.#getUsableLaneLimit();
     const safeLaneLimit = laneLimit * THREE.MathUtils.lerp(0.6, 0.42, roadTightness);
     const laneInfo = this.#getLaneInfo(this.car.group.position, progress);
@@ -101,15 +101,23 @@ export class AIController {
       this.overtakeOffset = THREE.MathUtils.damp(this.overtakeOffset, 0, 7, deltaTime);
     }
 
-    const target = this.#getOffsetTrackPoint(progress + lookAhead, targetLaneOffset);
+    const edgeLookAhead = edgeRatio > 0.42 ? THREE.MathUtils.lerp(1, 0.72, Math.min((edgeRatio - 0.42) / 0.36, 1)) : 1;
+    const target = this.#getOffsetTrackPoint(progress + lookAhead * edgeLookAhead, targetLaneOffset);
     const steeringError = this.#getSteeringError(target);
     const edgeSpeedMultiplier = edgeRatio > 0.48 ? THREE.MathUtils.lerp(1, 0.36, Math.min((edgeRatio - 0.48) / 0.34, 1)) : 1;
     const steeringSpeedMultiplier = Math.abs(steeringError) > 0.42 ? THREE.MathUtils.lerp(1, 0.62, Math.min(Math.abs(steeringError), 1)) : 1;
+    const cornerDemand = THREE.MathUtils.clamp((Math.abs(steeringError) - 0.2) / 0.72, 0, 1);
+    const edgeDemand = THREE.MathUtils.clamp((edgeRatio - 0.46) / 0.32, 0, 1);
     const recoverySpeed = edgeRatio > 0.68 ? 11 : 0;
     const cornerSpeed = Math.max(
-      28,
+      24,
       recoverySpeed,
       this.settings.targetSpeed * edgeSpeedMultiplier * steeringSpeedMultiplier,
+    );
+    const cornerLimit = THREE.MathUtils.lerp(
+      this.car.maxForwardSpeed,
+      cornerSpeed,
+      Math.max(cornerDemand, edgeDemand),
     );
     const spacingSpeed = Number.isFinite(traffic.followingDistance)
       ? THREE.MathUtils.clamp(
@@ -118,21 +126,21 @@ export class AIController {
           this.car.maxForwardSpeed,
         )
       : this.car.maxForwardSpeed;
-    const desiredSpeed = Math.min(this.car.maxForwardSpeed, spacingSpeed);
+    const desiredSpeed = Math.min(this.car.maxForwardSpeed, spacingSpeed, cornerLimit);
     const shouldBrake =
       traffic.spacingBrake ||
-      (this.car.speed > cornerSpeed + 6 && this.car.speed > 16 && (Math.abs(steeringError) > 0.92 || edgeRatio > 0.76)) ||
+      (this.car.speed > cornerLimit + 3 && this.car.speed > 16 && (cornerDemand > 0.34 || edgeRatio > 0.56)) ||
       this.car.speed > this.car.maxForwardSpeed + 1.5;
     const canBrakeWithoutReversing = this.car.speed > 5.5;
-    const rawSteering = THREE.MathUtils.clamp(steeringError * 1.05, -0.82, 0.82);
-    this.smoothedSteering = THREE.MathUtils.damp(this.smoothedSteering, rawSteering, 3.15, deltaTime);
+    const rawSteering = THREE.MathUtils.clamp(steeringError * 1.18, -0.92, 0.92);
+    this.smoothedSteering = THREE.MathUtils.damp(this.smoothedSteering, rawSteering, 4.1, deltaTime);
 
     this.currentControls = {
       throttle: (this.car.speed < desiredSpeed && !shouldBrake) || (this.stuckTimer > 0.35 && !traffic.spacingBrake),
       brakeReverse: shouldBrake && canBrakeWithoutReversing,
       handbrake: false,
       steering: this.smoothedSteering,
-      steeringAssist: edgeRatio > 0.72 ? 1.16 : 1.04,
+      steeringAssist: edgeRatio > 0.64 ? 1.34 : 1.16,
       steerLeft: steeringError > 0.08,
       steerRight: steeringError < -0.08,
       resetPressed: false,
@@ -273,28 +281,28 @@ export class AIController {
     const heading = this.#getHeadingAt(currentProgress + lookAhead * 0.9);
     const assistStrength = THREE.MathUtils.clamp((edgeRatio - 0.44) / 0.46, 0, 1);
 
-    if (edgeRatio > 0.58) {
+    if (edgeRatio > 0.52) {
       this.car.group.rotation.y = this.#dampAngle(
         this.car.group.rotation.y,
         heading,
-        1.4 + assistStrength * 3.2,
+        1.8 + assistStrength * 3.8,
         deltaTime,
       );
     }
 
-    if (edgeRatio > 0.52) {
+    if (edgeRatio > 0.46) {
       const inward = laneInfo.center.clone().sub(this.car.group.position);
       inward.y = 0;
       const inwardDistance = inward.length();
 
       if (inwardDistance > 0.001) {
         inward.multiplyScalar(1 / inwardDistance);
-        const correctionStep = Math.min(inwardDistance, (0.4 + assistStrength * 1.35) * deltaTime);
+        const correctionStep = Math.min(inwardDistance, (0.55 + assistStrength * 1.75) * deltaTime);
         this.car.group.position.addScaledVector(inward, correctionStep);
 
         const outwardSpeed = this.car.velocity.dot(inward.clone().multiplyScalar(-1));
         if (outwardSpeed > 0) {
-          this.car.velocity.addScaledVector(inward, outwardSpeed * 0.8);
+          this.car.velocity.addScaledVector(inward, outwardSpeed * 0.92);
         }
       }
     }
